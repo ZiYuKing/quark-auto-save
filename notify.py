@@ -898,7 +898,7 @@ def kook_bot(title: str, content: str) -> None:
     }
     try:
         response = requests.post(
-            url=url, headers=headers, params=payload, proxies=proxies
+            url=url, headers=headers, params=payload
         ).json()
         response = response.json()
         if response.get("code") == 0 and response.get("message") == "操作成功":
