@@ -274,13 +274,19 @@ class MagicRename:
         # 合并目录文件列表
         filename_list = list(set(filename_list) | set(dir_filename_dict.values()))
         filename_list.sort(key=self._custom_sort_key)
-        # print(f"filename_list_sort: {filename_list}")
+        filename_index = {}
+        for name in filename_list:
+            if name in dir_filename_dict.values():
+                continue
+            i = filename_list.index(name) + 1
+            while i in dir_filename_dict.keys():
+                i += 1
+            dir_filename_dict[i] = name
+            filename_index[name] = i
         for file in file_list:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
-                    i = filename_list.index(file["file_name_re"]) + 1
-                    while i in dir_filename_dict.keys():
-                        i += 1
+                    i = filename_index.get(file["file_name_re"], 0)
                     file["file_name_re"] = re.sub(
                         match.group(),
                         str(i).zfill(match.group().count("I")),
@@ -856,18 +862,19 @@ class Quark:
         mr = MagicRename(CONFIG_DATA.get("magic_regex", {}))
         mr.set_taskname(task["taskname"])
 
+        # 魔法正则转换
+        pattern, replace = mr.magic_regex_conv(
+            task.get("pattern", ""), task.get("replace", "")
+        )
         # 需保存的文件清单
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
-            if share_file["dir"] and task.get("update_subdir", False):
-                pattern, replace = task["update_subdir"], ""
-            else:
-                pattern, replace = mr.magic_regex_conv(
-                    task.get("pattern", ""), task.get("replace", "")
-                )
+            search_pattern = (
+                task.get("update_subdir", "") if share_file["dir"] else pattern
+            )
             # 正则文件名匹配
-            if re.search(pattern, share_file["file_name"]):
+            if re.search(search_pattern, share_file["file_name"]):
                 # 判断原文件名是否存在，处理忽略扩展名
                 if not mr.is_exists(
                     share_file["file_name"],
