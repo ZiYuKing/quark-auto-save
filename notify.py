@@ -137,10 +137,8 @@ push_config = {
     'WXPUSHER_TOPIC_IDS': '',           # wxpusher 的 主题ID，多个用英文分号;分隔 topic_ids 与 uids 至少配置一个才行
     'WXPUSHER_UIDS': '',                # wxpusher 的 用户ID，多个用英文分号;分隔 topic_ids 与 uids 至少配置一个才行
 
-    'DODO_BOTTOKEN': '',                # DoDo机器人的token DoDo开发平台https://doker.imdodo.com/
-    'DODO_BOTID': '',                   # DoDo机器人的id
-    'DODO_LANDSOURCEID': '',            # DoDo机器人所在的群ID
-    'DODO_SOURCEID': '',                # DoDo机器人推送目标用户的ID
+    'KOOK_BOTTOKEN': '',                # kook机器人的token kook开发平台https://developer.kookapp.cn/
+    'KOOK_ID': '',                      # KOOK机器人推送目标用户的ID
 }
 # fmt: on
 
@@ -845,54 +843,70 @@ def ntfy(title: str, content: str) -> None:
     else:
         print("Ntfy 推送失败！错误信息：", response.text)
 
-def dodo_bot(title: str, content: str) -> None:
+def kook_bot(title: str, content: str) -> None:
     """
-    通过 DoDo机器人 推送消息
+    通过 KOOK机器人 推送消息
     """
     required_keys = [
-        'DODO_BOTTOKEN',
-        'DODO_BOTID',
-        'DODO_LANDSOURCEID',
-        'DODO_SOURCEID'
+        'KOOK_BOTTOKEN',
+        'KOOK_ID'
     ]
     if not all(push_config.get(key) for key in required_keys):
         missing = [key for key in required_keys if not push_config.get(key)]
-        print(f"DoDo 服务配置不完整，缺少以下参数: {', '.join(missing)}\n取消推送")
+        print(f"KOOK 服务配置不完整，缺少以下参数: {', '.join(missing)}\n取消推送")
         return
-    print("DoDo 服务启动")
-    url="https://botopen.imdodo.com/api/v2/personal/message/send"
+    print("KOOK 服务启动")
+    url="https://www.kookapp.cn/api/v3/direct-message/create"
 
-    botID=push_config.get('DODO_BOTID')
-    botToken=push_config.get('DODO_BOTTOKEN')
-    islandSourceId=push_config.get('DODO_LANDSOURCEID')
-    dodoSourceId=push_config.get('DODO_SOURCEID')
+    botToken=push_config.get('KOOK_BOTTOKEN')
+    kookID=push_config.get('KOOK_ID')
 
     headers = {
-        'Authorization': f'Bot {botID}.{botToken}',
-        'Content-Type': 'application/json',
-        'Host': 'botopen.imdodo.com'
+        'Authorization': f'Bot {botToken}',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Host': 'www.kookapp.cn'
     }
-    payload = json.dumps({
-        "islandSourceId": islandSourceId,
-        "dodoSourceId": dodoSourceId,
-        "messageType": 1,
-        "messageBody": {
-            "content": f"{title}\n\n{content}"
-        }
+    content = json.dumps({
+        [
+            {
+                "type": "card",
+                "theme": "none",
+                "size": "lg",
+                "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                    "type": "plain-text",
+                    "content": f"{title}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                    "type": "kmarkdown",
+                    "content": f"{content}"
+                    }
+                }
+                ]
+            }
+        ]
     })
-
+    payload = {
+        "type": 10,
+        "target_id": f"{KOOKID}",
+        "content": content,
+    }
     try:
-        response = requests.post(url, headers=headers, data=payload)
-        if response.status_code == 200:
-            response = response.json()
-            if response.get("status") == 0 and response.get("message") == "success":
-                print(f'DoDo 推送成功！')
-            else:
-                print(f'DoDo 推送失败！错误信息：\n{response}')
+        response = requests.post(
+            url=url, headers=headers, params=payload, proxies=proxies
+        ).json()
+        response = response.json()
+        if response.get("code") == 0 and response.get("message") == "操作成功":
+            print(f'KOOK 推送成功！')
         else:
-            print("DoDo 推送失败！错误信息：", response.text)
+            print(f'KOOK 推送失败！错误信息：\n{response}')
     except Exception as e:
-        print(f"DoDo 推送请求异常: {str(e)}")
+        print(f"KOOK 推送请求异常: {str(e)}")
 
 def wxpusher_bot(title: str, content: str) -> None:
     """
@@ -1108,12 +1122,10 @@ def add_notify_function():
     ):
         notify_function.append(chronocat)
     if (
-        push_config.get("DODO_BOTTOKEN")
-        and push_config.get("DODO_BOTID")
-        and push_config.get("DODO_LANDSOURCEID")
-        and push_config.get("DODO_SOURCEID")
+        push_config.get("KOOK_BOTTOKEN")
+        and push_config.get("KOOK_ID")
     ):
-        notify_function.append(dodo_bot)
+        notify_function.append(kook_bot)
     if push_config.get("WEBHOOK_URL") and push_config.get("WEBHOOK_METHOD"):
         notify_function.append(custom_notify)
     if push_config.get("NTFY_TOPIC"):
