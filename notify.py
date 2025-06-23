@@ -863,10 +863,14 @@ def kook_bot(title: str, content: str) -> None:
 
     headers = {
         'Authorization': f'Bot {botToken}',
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'Host': 'www.kookapp.cn'
     }
-    payload=f'type=10&target_id=3948933501&content=%5B%0D%0A%20%20%7B%0D%0A%20%20%20%20%22type%22%3A%20%22card%22%2C%0D%0A%20%20%20%20%22theme%22%3A%20%22none%22%2C%0D%0A%20%20%20%20%22size%22%3A%20%22lg%22%2C%0D%0A%20%20%20%20%22modules%22%3A%20%5B%0D%0A%20%20%20%20%20%20%7B%0D%0A%20%20%20%20%20%20%20%20%22type%22%3A%20%22header%22%2C%0D%0A%20%20%20%20%20%20%20%20%22text%22%3A%20%7B%0D%0A%20%20%20%20%20%20%20%20%20%20%22type%22%3A%20%22plain-text%22%2C%0D%0A%20%20%20%20%20%20%20%20%20%20%22content%22%3A%20%22{title}%22%0D%0A%20%20%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%20%20%7D%2C%0D%0A%20%20%20%20%20%20%7B%0D%0A%20%20%20%20%20%20%20%20%22type%22%3A%20%22section%22%2C%0D%0A%20%20%20%20%20%20%20%20%22text%22%3A%20%7B%0D%0A%20%20%20%20%20%20%20%20%20%20%22type%22%3A%20%22kmarkdown%22%2C%0D%0A%20%20%20%20%20%20%20%20%20%20%22content%22%3A%20%22{content}%22%0D%0A%20%20%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%5D%0D%0A%20%20%7D%0D%0A%5D'
+    payload = json.dumps({
+        "type": 9,
+        "target_id": kookID,
+        "content": f"{title}\n\n{content}"
+    })
     try:
         response = requests.post(url,headers=headers, data=payload)
         if response.status_code == 200:
