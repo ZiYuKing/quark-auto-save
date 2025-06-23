@@ -866,31 +866,31 @@ def kook_bot(title: str, content: str) -> None:
         'Content-Type': 'application/x-www-form-urlencoded',
         'Host': 'www.kookapp.cn'
     }
-    content = json.dumps({
-        [
-            {
-                "type": "card",
-                "theme": "none",
-                "size": "lg",
-                "modules": [
+    card_data = [
+        {
+            "type": "card",
+            "theme": "none",
+            "size": "lg",
+            "modules": [
                 {
                     "type": "header",
                     "text": {
-                    "type": "plain-text",
-                    "content": f"{title}"
+                        "type": "plain-text",
+                        "content": title
                     }
                 },
                 {
                     "type": "section",
                     "text": {
-                    "type": "kmarkdown",
-                    "content": f"{content}"
+                        "type": "kmarkdown",
+                        "content": content
                     }
                 }
-                ]
-            }
-        ]
-    })
+            ]
+        }
+    ]
+
+    content = json.dumps(card_data, ensure_ascii=False)
     payload = {
         "type": 10,
         "target_id": f"{kookID}",
