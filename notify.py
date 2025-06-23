@@ -866,43 +866,15 @@ def kook_bot(title: str, content: str) -> None:
         'Content-Type': 'application/x-www-form-urlencoded',
         'Host': 'www.kookapp.cn'
     }
-    card_data = [
-        {
-            "type": "card",
-            "theme": "none",
-            "size": "lg",
-            "modules": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain-text",
-                        "content": title
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "kmarkdown",
-                        "content": content
-                    }
-                }
-            ]
-        }
-    ]
-
-    content = json.dumps(card_data, ensure_ascii=False)
-    payload = {
-        "type": 10,
-        "target_id": f"{kookID}",
-        "content": content,
-    }
+    payload=f'type=10&target_id=3948933501&content=%5B%0D%0A%20%20%7B%0D%0A%20%20%20%20%22type%22%3A%20%22card%22%2C%0D%0A%20%20%20%20%22theme%22%3A%20%22none%22%2C%0D%0A%20%20%20%20%22size%22%3A%20%22lg%22%2C%0D%0A%20%20%20%20%22modules%22%3A%20%5B%0D%0A%20%20%20%20%20%20%7B%0D%0A%20%20%20%20%20%20%20%20%22type%22%3A%20%22header%22%2C%0D%0A%20%20%20%20%20%20%20%20%22text%22%3A%20%7B%0D%0A%20%20%20%20%20%20%20%20%20%20%22type%22%3A%20%22plain-text%22%2C%0D%0A%20%20%20%20%20%20%20%20%20%20%22content%22%3A%20%22{title}%22%0D%0A%20%20%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%20%20%7D%2C%0D%0A%20%20%20%20%20%20%7B%0D%0A%20%20%20%20%20%20%20%20%22type%22%3A%20%22section%22%2C%0D%0A%20%20%20%20%20%20%20%20%22text%22%3A%20%7B%0D%0A%20%20%20%20%20%20%20%20%20%20%22type%22%3A%20%22kmarkdown%22%2C%0D%0A%20%20%20%20%20%20%20%20%20%20%22content%22%3A%20%22{content}%22%0D%0A%20%20%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%20%20%7D%0D%0A%20%20%20%20%5D%0D%0A%20%20%7D%0D%0A%5D'
     try:
-        response = requests.post(
-            url=url, headers=headers, params=payload
-        ).json()
-        response = response.json()
-        if response.get("code") == 0 and response.get("message") == "操作成功":
-            print(f'KOOK 推送成功！')
+        response = requests.post(url,headers=headers, data=payload)
+        if response.status_code == 200:
+            response = response.json()
+            if response.get("code") == 0 and response.get("message") == "操作成功":
+                print(f'KOOK 推送成功！')
+            else:
+                print(f'KOOK 推送失败！错误信息：\n{response}')
         else:
             print(f'KOOK 推送失败！错误信息：\n{response}')
     except Exception as e:
