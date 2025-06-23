@@ -893,7 +893,7 @@ def kook_bot(title: str, content: str) -> None:
     })
     payload = {
         "type": 10,
-        "target_id": f"{KOOKID}",
+        "target_id": f"{kookID}",
         "content": content,
     }
     try:
