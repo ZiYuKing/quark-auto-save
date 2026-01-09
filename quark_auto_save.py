@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2024-11-13
+# Modify: 2025-09-05
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -18,6 +18,7 @@ import importlib
 import traceback
 import urllib.parse
 from datetime import datetime
+from natsort import natsorted
 
 # 兼容青龙
 try:
@@ -95,20 +96,26 @@ class Config:
         PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
+        # 获取所有模块
+        py_ext = [".py", ".pyd"] if sys.platform == "win32" else [".py", ".so"]
         all_modules = [
-            f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
+            f.replace(ext, "")
+            for f in os.listdir(plugins_dir)
+            for ext in py_ext
+            if f.endswith(ext)
         ]
         # 调整模块优先级
         priority_path = os.path.join(plugins_dir, "_priority.json")
         try:
             with open(priority_path, encoding="utf-8") as f:
                 priority_modules = json.load(f)
-            if priority_modules:
-                all_modules = [
-                    module for module in priority_modules if module in all_modules
-                ] + [module for module in all_modules if module not in priority_modules]
         except (FileNotFoundError, json.JSONDecodeError):
             priority_modules = []
+        if priority_modules:
+            all_modules = [
+                module for module in priority_modules if module in all_modules
+            ] + [module for module in all_modules if module not in priority_modules]
+        # 加载模块
         for module_name in all_modules:
             if f"-{module_name}" in PLUGIN_FLAGS:
                 continue
@@ -127,7 +134,6 @@ class Config:
                     task_plugins_config[module_name] = plugin.default_task_config
             except (ImportError, AttributeError) as e:
                 print(f"载入模块 {module_name} 失败: {e}")
-        print()
         return plugins_available, plugins_config, task_plugins_config
 
     def breaking_change_update(config_data):
@@ -194,6 +200,9 @@ class MagicRename:
         "八",
         "九",
         "十",
+        "百",
+        "千",
+        "万",
     ]
 
     def __init__(self, magic_regex={}, magic_variable={}):
@@ -258,13 +267,14 @@ class MagicRename:
         """自定义排序键"""
         for i, keyword in enumerate(self.priority_list):
             if keyword in name:
-                return name.replace(keyword, f"{i:02d}")  # 替换为数字，方便排序
+                name = name.replace(keyword, f"_{i:02d}_")  # 替换为数字，方便排序
         return name
 
     def sort_file_list(self, file_list, dir_filename_dict={}):
         """文件列表统一排序，给{I+}赋值"""
         filename_list = [
-            f["file_name_re"]
+            # 强制加入`文件修改时间`字段供排序，效果：1无可排序字符时则按修改时间排序，2和目录已有文件重名时始终在其后
+            f"{f['file_name_re']}_{f['updated_at']}"
             for f in file_list
             if f.get("file_name_re") and not f["dir"]
         ]
@@ -273,7 +283,7 @@ class MagicRename:
         # print(f"dir_filename_list: {dir_filename_list}")
         # 合并目录文件列表
         filename_list = list(set(filename_list) | set(dir_filename_dict.values()))
-        filename_list.sort(key=self._custom_sort_key)
+        filename_list = natsorted(filename_list, key=self._custom_sort_key)
         filename_index = {}
         for name in filename_list:
             if name in dir_filename_dict.values():
@@ -286,7 +296,9 @@ class MagicRename:
         for file in file_list:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
-                    i = filename_index.get(file["file_name_re"], 0)
+                    i = filename_index.get(
+                        f"{file['file_name_re']}_{file['updated_at']}", 0
+                    )
                     file["file_name_re"] = re.sub(
                         match.group(),
                         str(i).zfill(match.group().count("I")),
@@ -295,11 +307,11 @@ class MagicRename:
 
     def set_dir_file_list(self, file_list, replace):
         """设置目录文件列表"""
-        if not file_list:
-            return
         self.dir_filename_dict = {}
         filename_list = [f["file_name"] for f in file_list if not f["dir"]]
         filename_list.sort()
+        if not filename_list:
+            return
         if match := re.search(r"\{I+\}", replace):
             # 由替换式转换匹配式
             magic_i = match.group()
@@ -332,7 +344,7 @@ class MagicRename:
         if match := re.search(r"\{I+\}", filename):
             magic_i = match.group()
             pattern_i = r"\d" * magic_i.count("I")
-            pattern = filename.replace(magic_i, pattern_i)
+            pattern = re.escape(filename).replace(re.escape(magic_i), pattern_i)
             for filename in filename_list:
                 if re.match(pattern, filename):
                     return filename
@@ -490,7 +502,9 @@ class Quark:
         ).json()
         return response
 
-    def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0):
+    def get_detail(
+        self, pwd_id, stoken, pdir_fid, _fetch_share=0, fetch_share_full_path=0
+    ):
         list_merge = []
         page = 1
         while True:
@@ -508,6 +522,8 @@ class Quark:
                 "_fetch_share": _fetch_share,
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
+                "ver": "2",
+                "fetch_share_full_path": fetch_share_full_path,
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
@@ -557,6 +573,8 @@ class Quark:
                 "_fetch_sub_dirs": "0",
                 "_sort": "file_type:asc,updated_at:desc",
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
+                "fetch_all_file": 1,  # 跟随Web端，作用未知
+                "fetch_risk_file_name": 1,  # 如无此参数，违规文件名会被变 ***
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
@@ -609,7 +627,9 @@ class Quark:
                 "__t": datetime.now().timestamp(),
             }
             response = self._send_request("GET", url, params=querystring).json()
-            if response["data"]["status"] != 0:
+            if response["status"] != 200:
+                return response
+            if response["data"]["status"] == 2:
                 if retry_index > 0:
                     print()
                 break
@@ -702,6 +722,7 @@ class Quark:
         match_pwd = re.search(r"pwd=(\w+)", url)
         passcode = match_pwd.group(1) if match_pwd else ""
         # path: fid-name
+        # Legacy 20250905
         paths = []
         matches = re.findall(r"/(\w{32})-?([^/]+)?", url)
         for match in matches:
@@ -871,7 +892,9 @@ class Quark:
         # 添加符合的
         for share_file in share_file_list:
             search_pattern = (
-                task.get("update_subdir", "") if share_file["dir"] else pattern
+                task["update_subdir"]
+                if share_file["dir"] and task.get("update_subdir")
+                else pattern
             )
             # 正则文件名匹配
             if re.search(search_pattern, share_file["file_name"]):
@@ -898,8 +921,35 @@ class Quark:
                             need_save_list.append(share_file)
                 elif share_file["dir"]:
                     # 存在并是一个目录，历遍子目录
-                    if task.get("update_subdir", False):
-                        if re.search(task["update_subdir"], share_file["file_name"]):
+                    if task.get("update_subdir", False) and re.search(
+                        task["update_subdir"], share_file["file_name"]
+                    ):
+                        if task.get("update_subdir_resave_mode", False):
+                            # 重存模式：删除该目录下所有文件，重新转存
+                            print(f"重存子目录：{savepath}/{share_file['file_name']}")
+                            # 删除子目录、回收站中彻底删除
+                            subdir = next(
+                                (
+                                    f
+                                    for f in dir_file_list
+                                    if f["file_name"] == share_file["file_name"]
+                                ),
+                                None,
+                            )
+                            delete_return = self.delete([subdir["fid"]])
+                            self.query_task(delete_return["data"]["task_id"])
+                            recycle_list = self.recycle_list()
+                            record_id_list = [
+                                item["record_id"]
+                                for item in recycle_list
+                                if item["fid"] == subdir["fid"]
+                            ]
+                            self.recycle_remove(record_id_list)
+                            # 作为新文件添加到转存列表
+                            share_file["file_name_re"] = share_file["file_name"]
+                            need_save_list.append(share_file)
+                        else:
+                            # 递归模式
                             print(f"检查子目录：{savepath}/{share_file['file_name']}")
                             subdir_tree = self.dir_check_and_save(
                                 task,
@@ -931,36 +981,46 @@ class Quark:
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
         if fid_list:
-            save_file_return = self.save_file(
-                fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
-            )
             err_msg = None
-            if save_file_return["code"] == 0:
-                task_id = save_file_return["data"]["task_id"]
-                query_task_return = self.query_task(task_id)
-                if query_task_return["code"] == 0:
-                    # 建立目录树
-                    for index, item in enumerate(need_save_list):
-                        icon = self._get_file_icon(item)
-                        tree.create_node(
-                            f"{icon}{item['file_name_re']}",
-                            item["fid"],
-                            parent=pdir_fid,
-                            data={
-                                "file_name": item["file_name"],
-                                "file_name_re": item["file_name_re"],
-                                "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
-                                "path": f"{savepath}/{item['file_name_re']}",
-                                "is_dir": item["dir"],
-                                "obj_category": item.get("obj_category", ""),
-                            },
+            save_as_top_fids = []
+            while fid_list:
+                # 分次转存，100个/次，因query_task返回save_as_top_fids最多100
+                save_file_return = self.save_file(
+                    fid_list[:100], fid_token_list[:100], to_pdir_fid, pwd_id, stoken
+                )
+                fid_list = fid_list[100:]
+                fid_token_list = fid_token_list[100:]
+                if save_file_return["code"] == 0:
+                    # 转存成功，查询转存结果
+                    task_id = save_file_return["data"]["task_id"]
+                    query_task_return = self.query_task(task_id)
+                    if query_task_return["code"] == 0:
+                        save_as_top_fids.extend(
+                            query_task_return["data"]["save_as"]["save_as_top_fids"]
                         )
+                    else:
+                        err_msg = query_task_return["message"]
                 else:
-                    err_msg = query_task_return["message"]
-            else:
-                err_msg = save_file_return["message"]
-            if err_msg:
-                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                    err_msg = save_file_return["message"]
+                if err_msg:
+                    add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+            # 建立目录树
+            if len(need_save_list) == len(save_as_top_fids):
+                for index, item in enumerate(need_save_list):
+                    icon = self._get_file_icon(item)
+                    tree.create_node(
+                        f"{icon}{item['file_name_re']}",
+                        item["fid"],
+                        parent=pdir_fid,
+                        data={
+                            "file_name": item["file_name"],
+                            "file_name_re": item["file_name_re"],
+                            "fid": f"{save_as_top_fids[index]}",
+                            "path": f"{savepath}/{item['file_name_re']}",
+                            "is_dir": item["dir"],
+                            "obj_category": item.get("obj_category", ""),
+                        },
+                    )
         return tree
 
     def do_rename(self, tree, node_id=None):
@@ -1055,6 +1115,7 @@ def do_save(account, tasklist=[]):
     plugins, CONFIG_DATA["plugins"], task_plugins_config = Config.load_plugins(
         CONFIG_DATA.get("plugins", {})
     )
+    print()
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
@@ -1121,6 +1182,13 @@ def do_save(account, tasklist=[]):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
+    print()
+    print(f"===============插件收尾===============")
+    for plugin_name, plugin in plugins.items():
+        if plugin.is_active and hasattr(plugin, "task_after"):
+            data = plugin.task_after()
+            if data.get("config"):
+                CONFIG_DATA["plugins"][plugin_name] = data["config"]
     print()
 
 

@@ -8,7 +8,7 @@
 
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
 
-定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
+定期执行本脚本自动转存、文件名整理，配合 [SmartStrm](https://github.com/Cp0204/SmartStrm) / [OpenList](https://github.com/OpenListTeam/OpenList) , Emby 可达到自动追更的效果。🥳
 
 
 [![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
@@ -29,7 +29,7 @@
 > ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
 > [!NOTE]
-> 开发者≠客服，开源免费≠帮你解决使用问题；本项目Wiki和已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
+> 开发者≠客服，开源免费≠帮你解决使用问题；本项目 Wiki 已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
 
 ## 功能
 
@@ -58,7 +58,7 @@
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
   - [x] 追更或整理后自动刷新 Emby 媒体库
-  - [x] 媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)
+  - [x] 插件模块化，允许自行开发和挂载[插件](./plugins)
 
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
@@ -69,7 +69,7 @@
 
 ### Docker 部署
 
-Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数需求。部署命令：
+Docker 部署提供 WebUI 进行管理配置，部署命令：
 
 ```shell
 docker run -d \
@@ -107,11 +107,13 @@ services:
 
 管理地址：http://yourhost:5005
 
-| 环境变量         | 默认       | 备注     |
-| ---------------- | ---------- | -------- |
-| `WEBUI_USERNAME` | `admin`    | 管理账号 |
-| `WEBUI_PASSWORD` | `admin123` | 管理密码 |
+| 环境变量         | 默认       | 备注                                     |
+| ---------------- | ---------- | ---------------------------------------- |
+| `WEBUI_USERNAME` | `admin`    | 管理账号                                 |
+| `WEBUI_PASSWORD` | `admin123` | 管理密码                                 |
+| `PORT`           | `5005`     | 管理后台端口                             |
 | `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
+| `TASK_TIMEOUT`   | `1800`     | 任务执行超时时间（秒），超时则任务结束   |
 
 #### 一键更新
 
@@ -128,23 +130,17 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 </details>
 
-### 青龙部署
-
-程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
-
-青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/部署教程#青龙部署)
-
 ## 使用说明
 
 ### 正则处理示例
 
-| pattern                                | replace      | 效果                                                                   |
-| -------------------------------------- | ------------ | ---------------------------------------------------------------------- |
-| `.*`                                   |              | 无脑转存所有文件，不整理                                               |
-| `\.mp4$`                               |              | 转存所有 `.mp4` 后缀的文件                                             |
-| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`      | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
-| `^(\d+)\.mp4`                          | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
-| `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
+| pattern                                | replace                 | 效果                                                                   |
+| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `.*`                                   |                         | 无脑转存所有文件，不整理                                               |
+| `\.mp4$`                               |                         | 转存所有 `.mp4` 后缀的文件                                             |
+| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`                 | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
+| `^(\d+)\.mp4`                          | `S02E\1.mp4`            | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
+| `$TV`                                  |                         | [魔法匹配](#魔法匹配)剧集文件                                          |
 | `^(\d+)\.mp4`                          | `{TASKNAME}.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
 
 更多正则使用说明：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程)
@@ -167,6 +163,40 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
 
+## 生态项目
+
+以下展示 QAS 生态项目，包括官方项目和第三方项目。
+
+### 官方项目
+
+* [QAS一键推送助手](https://greasyfork.org/zh-CN/scripts/533201-qas一键推送助手)
+
+  油猴脚本，在夸克网盘分享页面添加推送到 QAS 的按钮
+
+* [SmartStrm](https://github.com/Cp0204/SmartStrm)
+
+  STRM 文件生成工具，用于转存后处理，媒体免下载入库播放。
+
+### 第三方开源项目
+
+> [!TIP]
+>
+> 以下第三方开源项目均由社区开发并保持开源，与 QAS 作者无直接关联。在部署到生产环境前，请自行评估相关风险。
+>
+> 如果您有新的项目没有在此列出，可以通过 Issues 提交。
+
+* [nonebot-plugin-quark-autosave](https://github.com/fllesser/nonebot-plugin-quark-autosave)
+
+  QAS Telegram 机器人，快速管理自动转存任务
+
+* [Astrbot_plugin_quarksave](https://github.com/lm379/astrbot_plugin_quarksave)
+
+  AstrBot 插件，调用 quark_auto_save 实现自动转存资源到夸克网盘
+
+* [Telegram 媒体资源管理机器人](https://github.com/2beetle/tgbot)
+
+  一个功能丰富的 Telegram 机器人，专注于媒体资源管理、Emby 集成、自动下载和夸克网盘资源管理。
+
 ## 打赏
 
 如果这个项目让你受益，你可以无偿赠与我1块钱，让我知道开源有价值。谢谢！
@@ -180,3 +210,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API；本人不对网盘内容负责、不对夸克官方API未来可能的变动导致的影响负责，请自行斟酌使用。
 
 开源仅供学习与交流使用，未盈利也未授权商业使用，严禁用于非法用途。
+
+## Sponsor
+
+CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne.
+
+<a href="https://edgeone.ai/?from=github" target="_blank"><img title="Best Asian CDN, Edge, and Secure Solutions - Tencent EdgeOne" src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" width="300"></a>

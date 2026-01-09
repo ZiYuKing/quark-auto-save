@@ -15,12 +15,15 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from sdk.cloudsaver import CloudSaver
+from sdk.pansou import PanSou
 from datetime import timedelta
 import subprocess
 import requests
 import hashlib
 import logging
+import traceback
 import base64
 import sys
 import os
@@ -30,10 +33,30 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark, Config, MagicRename
 
+print(
+    r"""
+   ____    ___   _____
+  / __ \  /   | / ___/
+ / / / / / /| | \__ \
+/ /_/ / / ___ |___/ /
+\___\_\/_/  |_/____/
+
+-- Quark-Auto-Save --
+ """
+)
+sys.stdout.flush()
+
 
 def get_app_ver():
-    BUILD_SHA = os.environ.get("BUILD_SHA", "")
-    BUILD_TAG = os.environ.get("BUILD_TAG", "")
+    """获取应用版本"""
+    try:
+        with open("build.json", "r") as f:
+            build_info = json.loads(f.read())
+            BUILD_SHA = build_info["BUILD_SHA"]
+            BUILD_TAG = build_info["BUILD_TAG"]
+    except Exception as e:
+        BUILD_SHA = os.getenv("BUILD_SHA", "")
+        BUILD_TAG = os.getenv("BUILD_TAG", "")
     if BUILD_TAG[:1] == "v":
         return BUILD_TAG
     elif BUILD_SHA:
@@ -50,6 +73,7 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = os.environ.get("PORT", 5005)
+TASK_TIMEOUT = int(os.environ.get("TASK_TIMEOUT", 1800))
 
 config_data = {}
 task_plugins_config_default = {}
@@ -73,6 +97,8 @@ logging.basicConfig(
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("apscheduler").setLevel(logging.ERROR)
+    sys.modules["flask.cli"].show_server_banner = lambda *x: None
 
 
 def gen_md5(string):
@@ -233,8 +259,19 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    try:
-        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    net_data = config_data.get("source", {}).get("net", {})
+    cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    ps_data = config_data.get("source", {}).get("pansou", {})
+
+    def net_search():
+        if str(net_data.get("enable", "true")).lower() != "false":
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return response.json()
+        return []
+
+    def cs_search():
         if (
             cs_data.get("server")
             and cs_data.get("username")
@@ -252,18 +289,37 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify(
-                    {"success": True, "source": "CloudSaver", "data": search_results}
-                )
-            else:
-                return jsonify({"success": True, "message": search.get("message")})
-        else:
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-            response = requests.get(url)
-            return jsonify(
-                {"success": True, "source": "网络公开", "data": response.json()}
-            )
+                return search_results
+        return []
+
+    def ps_search():
+        if ps_data.get("server"):
+            ps = PanSou(ps_data.get("server"))
+            return ps.search(query, deep == "1")
+        return []
+
+    try:
+        search_results = []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            features = []
+            features.append(executor.submit(net_search))
+            features.append(executor.submit(cs_search))
+            features.append(executor.submit(ps_search))
+            for future in as_completed(features):
+                result = future.result()
+                search_results.extend(result)
+
+        # 按时间排序并去重
+        results = []
+        link_array = []
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
+        for item in search_results:
+            url = item.get("shareurl", "")
+            if url != "" and url not in link_array:
+                link_array.append(url)
+                results.append(item)
+
+        return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
@@ -284,7 +340,9 @@ def get_share_detail():
             return jsonify(
                 {"success": False, "data": {"error": get_stoken.get("message")}}
             )
-    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    share_detail = account.get_detail(
+        pwd_id, stoken, pdir_fid, _fetch_share=1, fetch_share_full_path=1
+    )
 
     if share_detail.get("code") != 0:
         return jsonify(
@@ -292,7 +350,10 @@ def get_share_detail():
         )
 
     data = share_detail["data"]
-    data["paths"] = paths
+    data["paths"] = [
+        {"fid": i["fid"], "name": i["file_name"]}
+        for i in share_detail["data"].get("full_path", [])
+    ] or paths
     data["stoken"] = stoken
 
     # 正则处理预览
@@ -315,7 +376,9 @@ def get_share_detail():
         )
         for share_file in data["list"]:
             search_pattern = (
-                task.get("update_subdir", "") if share_file["dir"] else pattern
+                task["update_subdir"]
+                if share_file["dir"] and task.get("update_subdir")
+                else pattern
             )
             if re.search(search_pattern, share_file["file_name"]):
                 # 文件名重命名，目录不重命名
@@ -424,7 +487,36 @@ def add_task():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
-    os.system(f"{PYTHON_PATH} {args}")
+    try:
+        result = subprocess.run(
+            f"{PYTHON_PATH} {args}",
+            shell=True,
+            timeout=TASK_TIMEOUT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        # 输出执行日志
+        if result.stdout:
+            for line in result.stdout.strip().split("\n"):
+                if line.strip():
+                    logging.info(line)
+
+        if result.returncode == 0:
+            logging.info(f">>> 任务执行成功")
+        else:
+            logging.error(f">>> 任务执行失败，返回码: {result.returncode}")
+            if result.stderr:
+                logging.error(f"错误信息: {result.stderr[:500]}")
+    except subprocess.TimeoutExpired as e:
+        logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
+    except Exception as e:
+        logging.error(f">>> 任务执行异常: {str(e)}")
+        logging.error(traceback.format_exc())
+    finally:
+        # 确保函数能够正常返回
+        logging.debug(f">>> run_python 函数执行完成")
 
 
 # 重新加载任务
@@ -440,6 +532,10 @@ def reload_tasks():
             trigger=trigger,
             args=[f"{SCRIPT_PATH} {CONFIG_PATH}"],
             id=SCRIPT_PATH,
+            max_instances=1,  # 最多允许1个实例运行
+            coalesce=True,  # 合并错过的任务，避免堆积
+            misfire_grace_time=300,  # 错过任务的宽限期(秒)，超过则跳过
+            replace_existing=True,  # 替换已存在的同ID任务
         )
         if scheduler.state == 0:
             scheduler.start()
@@ -458,7 +554,7 @@ def reload_tasks():
 
 def init():
     global config_data, task_plugins_config_default
-    logging.info(f">>> 初始化配置")
+    logging.info(">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
         if not os.path.exists(os.path.dirname(CONFIG_PATH)):
@@ -496,6 +592,8 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
+    logging.info(">>> 启动Web服务")
+    logging.info(f"运行在: http://{HOST}:{PORT}")
     app.run(
         debug=DEBUG,
         host=HOST,
