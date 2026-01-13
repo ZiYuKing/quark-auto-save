@@ -464,7 +464,7 @@ def add_task():
         return jsonify({"success": False, "code": 1, "message": "未登录"}), 401
     # 必选字段
     request_data = request.json
-    required_fields = ["taskname", "shareurl", "savepath"]
+    required_fields = ["taskname", "shareurls", "savepath"]
     for field in required_fields:
         if field not in request_data or not request_data[field]:
             return (
@@ -473,6 +473,10 @@ def add_task():
                 ),
                 400,
             )
+    # 兼容旧版本的 shareurl
+    if "shareurl" in request_data and not request_data.get("shareurls"):
+        request_data["shareurls"] = [request_data["shareurl"]]
+        del request_data["shareurl"]
     if not request_data.get("addition"):
         request_data["addition"] = task_plugins_config_default
     # 添加任务

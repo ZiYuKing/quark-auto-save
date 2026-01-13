@@ -350,15 +350,17 @@
                   <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
-                        <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
-                          <div class="input-group-text">
-                            <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
+                      <div v-for="(shareurl, urlIndex) in task.shareurls" :key="urlIndex" class="input-group mb-2">
+                        <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurls[urlIndex]" placeholder="必填" @blur="changeShareurl(task, urlIndex)">
+                        <div class="input-group-append">
+                          <button type="button" class="btn btn-outline-secondary" v-if="task.shareurls[urlIndex]" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index, urlIndex)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <div class="input-group-text" v-if="task.shareurls[urlIndex]">
+                            <a target="_blank" :href="task.shareurls[urlIndex]"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
+                          <button type="button" class="btn btn-outline-danger" v-if="task.shareurls.length > 1" @click="removeShareurl(task, urlIndex)" title="删除链接"><i class="bi bi-trash"></i></button>
                         </div>
                       </div>
+                      <button type="button" class="btn btn-outline-primary btn-sm" @click="addShareurl(task)" title="添加更多分享链接"><i class="bi bi-plus-circle"></i> 添加链接</button>
                     </div>
                   </div>
                   <div class="form-group row">
@@ -378,7 +380,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index, 0)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" @dblclick="inputRawMagicRegex(task)" title="双击可将魔法匹配释放为填入原始正则表达式">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -398,8 +400,8 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
-                        <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                        <div class="input-group-append" v-if="task.shareurls && task.shareurls.length > 0 && task.shareurls[0]">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index, 0)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -414,6 +416,17 @@
                             <input type="checkbox" v-model="task.update_subdir_resave_mode">&nbsp;重存模式
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="勾选后，在未设置'更新目录'时，只转存文件，跳过文件夹">
+                    <label class="col-sm-2 col-form-label">转存选项</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-text">
+                          <input type="checkbox" v-model="task.skip_dir">&nbsp;跳过文件夹
+                        </div>
+                        <span class="form-control-plaintext ml-3 text-muted">适用于混合内容（文件+文件夹），只想转存根目录文件的场景</span>
                       </div>
                     </div>
                   </div>
@@ -644,13 +657,14 @@
         toasts: [],
         newTask: {
           taskname: "",
-          shareurl: "",
+          shareurls: [""],
           savepath: "/",
           pattern: "",
           replace: "",
           enddate: "",
           addition: {},
-          ignore_extension: false,
+          ignore_extension: true,
+          skip_dir: true,
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",
@@ -753,6 +767,13 @@
               config_data.tasklist = config_data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
+                }
+                // 将旧的 shareurl 转换为 shareurls
+                if (task.shareurl && !task.shareurls) {
+                  task.shareurls = [task.shareurl];
+                  delete task.shareurl;
+                } else if (!task.shareurls) {
+                  task.shareurls = [''];
                 }
                 return task;
               });
@@ -895,13 +916,26 @@
           if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
-        changeShareurl(task) {
-          if (!task.shareurl)
+        addShareurl(task) {
+          if (!task.shareurls) {
+            this.$set(task, 'shareurls', ['']);
+          } else {
+            task.shareurls.push('');
+          }
+        },
+        removeShareurl(task, urlIndex) {
+          if (task.shareurls.length > 1) {
+            task.shareurls.splice(urlIndex, 1);
+          }
+        },
+        changeShareurl(task, urlIndex) {
+          if (!task.shareurls || !task.shareurls[urlIndex])
             return;
           this.$set(task, "shareurl_ban", undefined);
-          // 从URL中提取任务名
+          const shareurl = task.shareurls[urlIndex];
+          // 从 URL 中提取任务名
           try {
-            const matches = decodeURIComponent(task.shareurl).match(/\/(\w{32})-([^\/]+)$/);
+            const matches = decodeURIComponent(shareurl).match(/\/(\w{32})-([^\/]+)$/);
             if (matches) {
               task.taskname = task.taskname == "" ? matches[2] : task.taskname;
               task.savepath = task.savepath.replace(/TASKNAME/g, matches[2]);
@@ -911,15 +945,15 @@
           }
           // 从分享中提取任务名
           axios.post('/get_share_detail', {
-            shareurl: task.shareurl
+            shareurl: shareurl
           }).then(response => {
             share_detail = response.data.data
             if (!response.data.success) {
               if (share_detail.error.includes("提取码")) {
                 const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
                 if (passcode != null) {
-                  task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
-                  this.changeShareurl(task);
+                  task.shareurls[urlIndex] = shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
+                  this.changeShareurl(task, urlIndex);
                   return;
                 }
               }
@@ -1074,7 +1108,7 @@
           this.fileSelect.switchShare = true;
           this.fileSelect.previewRegex = false;
           this.fileSelect.share = suggestion;
-          this.showShareSelect(index, suggestion.shareurl);
+          this.showShareSelect(index, 0, suggestion.shareurl);
         },
         addMagicRegex() {
           const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
@@ -1167,18 +1201,20 @@
             this.modalLoading = false;
           });
         },
-        showShareSelect(index, shareurl = null) {
+        showShareSelect(index, urlIndex = 0, shareurl = null) {
           this.fileSelect.selectShare = true;
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
           // 如果分享链接发生变化，则重置 stoken
-          const newShareurl = shareurl || this.formData.tasklist[index].shareurl
+          const task = this.formData.tasklist[index];
+          const newShareurl = shareurl || (task.shareurls && task.shareurls[urlIndex]) || '';
           if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(newShareurl)) {
             this.fileSelect.stoken = "";
           }
           this.fileSelect.shareurl = newShareurl;
           this.fileSelect.index = index;
+          this.fileSelect.urlIndex = urlIndex;
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
         },
@@ -1220,8 +1256,14 @@
         },
         selectCurrentFolder(addTaskname = false) {
           if (this.fileSelect.selectShare) {
-            this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
-            this.formData.tasklist[this.fileSelect.index].shareurl = this.fileSelect.shareurl;
+            const task = this.formData.tasklist[this.fileSelect.index];
+            const urlIndex = this.fileSelect.urlIndex || 0;
+            task.shareurl_ban = undefined;
+            // 确保 shareurls 数组存在
+            if (!task.shareurls) {
+              this.$set(task, 'shareurls', ['']);
+            }
+            this.$set(task.shareurls, urlIndex, this.fileSelect.shareurl);
           } else {
             this.formData.tasklist[this.fileSelect.index].savepath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
             if (addTaskname) {

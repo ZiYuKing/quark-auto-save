@@ -810,29 +810,67 @@ class Quark:
             print(f"《{task['taskname']}》：{task['shareurl_ban']}")
             return
 
-        # 链接转换所需参数
-        pwd_id, passcode, pdir_fid, _ = self.extract_url(task["shareurl"])
-
-        # 获取stoken，同时可验证资源是否失效
-        get_stoken = self.get_stoken(pwd_id, passcode)
-        if get_stoken.get("status") == 200:
-            stoken = get_stoken["data"]["stoken"]
-        elif get_stoken.get("status") == 500:
-            print(f"跳过任务：网络异常 {get_stoken.get('message')}")
+        # 兼容旧版本的 shareurl
+        if "shareurl" in task and "shareurls" not in task:
+            task["shareurls"] = [task["shareurl"]]
+        
+        # 获取分享链接列表
+        shareurls = task.get("shareurls", [])
+        if not shareurls:
+            print(f"《{task['taskname']}》：没有分享链接")
             return
-        else:
-            message = get_stoken.get("message")
-            add_notify(f"❌《{task['taskname']}》：{message}\n")
-            task["shareurl_ban"] = message
-            return
-        # print("stoken: ", stoken)
+        
+        # 合并所有链接的转存结果
+        merged_tree = Tree()
+        has_updates = False
+        
+        # 遍历所有分享链接
+        for idx, shareurl in enumerate(shareurls):
+            if not shareurl:  # 跳过空链接
+                continue
+                
+            print(f"处理链接 [{idx + 1}/{len(shareurls)}]: {shareurl}")
+            
+            # 链接转换所需参数
+            pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
 
-        updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
-        if updated_tree.size(1) > 0:
-            self.do_rename(updated_tree)
+            # 获取stoken，同时可验证资源是否失效
+            get_stoken = self.get_stoken(pwd_id, passcode)
+            if get_stoken.get("status") == 200:
+                stoken = get_stoken["data"]["stoken"]
+            elif get_stoken.get("status") == 500:
+                print(f"跳过链接 [{idx + 1}]：网络异常 {get_stoken.get('message')}")
+                continue
+            else:
+                message = get_stoken.get("message")
+                print(f"跳过链接 [{idx + 1}]：{message}")
+                if idx == 0:  # 只有第一个链接失败时才设置错误标记
+                    add_notify(f"❌《{task['taskname']}》：{message}\n")
+                    task["shareurl_ban"] = message
+                continue
+            # print("stoken: ", stoken)
+
+            updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
+            if updated_tree.size(1) > 0:
+                has_updates = True
+                # 合并到总的 tree 中
+                for node in updated_tree.all_nodes():
+                    if node.identifier not in [n.identifier for n in merged_tree.all_nodes()]:
+                        if node.is_root():
+                            merged_tree.create_node(
+                                node.tag, node.identifier, data=node.data
+                            )
+                        else:
+                            parent = updated_tree.parent(node.identifier)
+                            merged_tree.create_node(
+                                node.tag, node.identifier, parent=parent.identifier, data=node.data
+                            )
+        
+        if has_updates:
+            self.do_rename(merged_tree)
             print()
-            add_notify(f"✅《{task['taskname']}》添加追更：\n{updated_tree}")
-            return updated_tree
+            add_notify(f"✅《{task['taskname']}》添加追更：\n{merged_tree}")
+            return merged_tree
         else:
             print(f"任务结束：没有新的转存任务")
             return False
@@ -904,6 +942,9 @@ class Quark:
                     dir_filename_list,
                     (task.get("ignore_extension") and not share_file["dir"]),
                 ):
+                    # 如果开启了 skip_dir 选项且当前是文件夹，则跳过
+                    if share_file["dir"] and task.get("skip_dir") and not task.get("update_subdir"):
+                        continue
                     # 文件夹、子目录文件不进行重命名
                     if share_file["dir"] or subdir_path:
                         share_file["file_name_re"] = share_file["file_name"]
@@ -1138,7 +1179,11 @@ def do_save(account, tasklist=[]):
         print()
         print(f"#{index+1}------------------")
         print(f"任务名称: {task['taskname']}")
-        print(f"分享链接: {task['shareurl']}")
+        # 兼容旧版本
+        if "shareurl" in task:
+            print(f"分享链接: {task['shareurl']}")
+        elif "shareurls" in task:
+            print(f"分享链接: {', '.join(task['shareurls'])}")
         print(f"保存路径: {task['savepath']}")
         if task.get("pattern"):
             print(f"正则匹配: {task['pattern']}")
