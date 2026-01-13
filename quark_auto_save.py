@@ -823,6 +823,7 @@ class Quark:
         # 合并所有链接的转存结果
         merged_tree = Tree()
         has_updates = False
+        already_saved_files = []  # 记录已转存的文件名，避免重复转存
         
         # 遍历所有分享链接
         for idx, shareurl in enumerate(shareurls):
@@ -850,21 +851,39 @@ class Quark:
                 continue
             # print("stoken: ", stoken)
 
-            updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
+            # 传递已转存文件列表给检查函数
+            updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid, "", already_saved_files)
             if updated_tree.size(1) > 0:
                 has_updates = True
+                
+                # 收集本次转存的文件名
+                for node in updated_tree.all_nodes():
+                    if not node.is_root() and not node.data.get("is_dir", False):
+                        file_name_re = node.data.get("file_name_re")
+                        if file_name_re:
+                            already_saved_files.append(file_name_re)
+                
                 # 合并到总的 tree 中
                 for node in updated_tree.all_nodes():
                     if node.identifier not in [n.identifier for n in merged_tree.all_nodes()]:
                         if node.is_root():
-                            merged_tree.create_node(
-                                node.tag, node.identifier, data=node.data
-                            )
+                            # 第一个链接创建根节点
+                            if merged_tree.size() == 0:
+                                merged_tree.create_node(
+                                    node.tag, node.identifier, data=node.data
+                                )
                         else:
                             parent = updated_tree.parent(node.identifier)
-                            merged_tree.create_node(
-                                node.tag, node.identifier, parent=parent.identifier, data=node.data
-                            )
+                            # 确保父节点存在
+                            if parent.identifier in [n.identifier for n in merged_tree.all_nodes()]:
+                                merged_tree.create_node(
+                                    node.tag, node.identifier, parent=parent.identifier, data=node.data
+                                )
+                            elif merged_tree.size() > 0:
+                                # 如果父节点不存在，挂载到根节点
+                                merged_tree.create_node(
+                                    node.tag, node.identifier, parent=merged_tree.root, data=node.data
+                                )
         
         if has_updates:
             self.do_rename(merged_tree)
@@ -875,8 +894,12 @@ class Quark:
             print(f"任务结束：没有新的转存任务")
             return False
 
-    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
+    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path="", already_saved_files=None):
         tree = Tree()
+        # 初始化已转存文件列表
+        if already_saved_files is None:
+            already_saved_files = []
+        
         # 获取分享文件列表
         share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
         # print("share_file_list: ", share_file_list)
@@ -907,6 +930,9 @@ class Quark:
         to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
         dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+        
+        # 合并已转存的文件名（来自之前处理的链接）
+        dir_filename_list.extend(already_saved_files)
         # print("dir_file_list: ", dir_file_list)
 
         tree.create_node(
@@ -998,6 +1024,7 @@ class Quark:
                                 stoken,
                                 share_file["fid"],
                                 f"{subdir_path}/{share_file['file_name']}",
+                                already_saved_files,  # 传递已转存文件列表
                             )
                             if subdir_tree.size(1) > 0:
                                 # 合并子目录树
