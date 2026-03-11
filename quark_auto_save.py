@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2025-09-05
+# Modify: 2026-02-04
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -13,6 +13,7 @@ import sys
 import json
 import time
 import random
+import platform
 import requests
 import importlib
 import traceback
@@ -97,11 +98,12 @@ class Config:
         plugins_available = {}
         task_plugins_config = {}
         # 获取所有模块
-        py_ext = [".py", ".pyd"] if sys.platform == "win32" else [".py", ".so"]
+        sys_ext = "pyd" if platform.system() == "Windows" else "so"
+        module_ext = [".py", f".{sys_ext}"]
         all_modules = [
             f.replace(ext, "")
             for f in os.listdir(plugins_dir)
-            for ext in py_ext
+            for ext in module_ext
             if f.endswith(ext)
         ]
         # 调整模块优先级
@@ -1152,7 +1154,13 @@ def do_sign(account):
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
-        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
+        VIP_MAP = {
+            "NORMAL": "普通用户",
+            "EXP_SVIP": "88VIP",
+            "SUPER_VIP": "SVIP",
+            "Z_VIP": "SVIP+",
+        }
+        growth_message = f"💾 {VIP_MAP.get(growth_info['member_type'], growth_info['member_type'])} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
             sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
             message = f"{sign_message}\n{growth_message}"
@@ -1175,6 +1183,8 @@ def do_sign(account):
                     add_notify(message)
             else:
                 print(f"📅 签到异常: {sign_return}")
+    else:
+        print("⏭️ 签到进度读取异常，可能登录失效，跳过签到")
     print()
 
 
@@ -1200,6 +1210,12 @@ def do_save(account, tasklist=[]):
             # 星期一为0，星期日为6
             or (datetime.today().weekday() + 1 in task.get("runweek"))
         )
+
+    for plugin_name, plugin in plugins.items():
+        if plugin.is_active and hasattr(plugin, "task_before"):
+            tasklist = (
+                plugin.task_before(tasklist=tasklist, account=account) or tasklist
+            )
 
     # 执行任务
     for index, task in enumerate(tasklist):
@@ -1250,7 +1266,7 @@ def do_save(account, tasklist=[]):
             if is_new_tree:
                 print(f"🧩 调用插件")
                 for plugin_name, plugin in plugins.items():
-                    if plugin.is_active:
+                    if plugin.is_active and hasattr(plugin, "run"):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
@@ -1258,7 +1274,9 @@ def do_save(account, tasklist=[]):
     print(f"===============插件收尾===============")
     for plugin_name, plugin in plugins.items():
         if plugin.is_active and hasattr(plugin, "task_after"):
-            data = plugin.task_after()
+            data = plugin.task_after(tasklist=tasklist, account=account)
+            if data.get("tasklist"):
+                CONFIG_DATA["tasklist"] = data["tasklist"]
             if data.get("config"):
                 CONFIG_DATA["plugins"][plugin_name] = data["config"]
     print()
