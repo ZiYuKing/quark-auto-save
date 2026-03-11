@@ -339,6 +339,15 @@ class MagicRename:
     def is_exists(self, filename, filename_list, ignore_ext=False):
         """判断文件是否存在，处理忽略扩展名"""
         # print(f"filename: {filename} filename_list: {filename_list}")
+        def normalize_episode_name(name):
+            # 统一剧集编号格式，避免 S05E01 与 S05E001 误判为不同文件
+            def _replace(match):
+                season = int(match.group(1))
+                episode = int(match.group(2))
+                return f"S{season}E{episode}"
+
+            return re.sub(r"(?i)S0*(\d{1,3})E0*(\d{1,4})", _replace, name)
+
         if ignore_ext:
             filename = os.path.splitext(filename)[0]
             filename_list = [os.path.splitext(f)[0] for f in filename_list]
@@ -352,7 +361,12 @@ class MagicRename:
                     return filename
             return None
         else:
-            return filename if filename in filename_list else None
+            if filename in filename_list:
+                return filename
+
+            # 兜底：按标准化后的剧集编号再比较一次（S05E01 == S05E001）
+            normalized_map = {normalize_episode_name(f): f for f in filename_list}
+            return normalized_map.get(normalize_episode_name(filename))
 
 
 class Quark:
