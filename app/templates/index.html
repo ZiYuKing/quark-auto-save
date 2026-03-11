@@ -400,6 +400,30 @@
                       </datalist>
                     </div>
                   </div>
+                  <div class="form-group row" title="任务成功后调用 Alist 转存动作">
+                    <label class="col-sm-2 col-form-label">Alist转存</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-text">
+                          <input type="checkbox" v-model="task.addition.alist_transfer.move" @change="handleAlistTransferMode(task, 'move')">&nbsp;移动
+                        </div>
+                        <div class="input-group-text">
+                          <input type="checkbox" v-model="task.addition.alist_transfer.copy" @change="handleAlistTransferMode(task, 'copy')">&nbsp;复制
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" v-if="task.addition && task.addition.alist_transfer && (task.addition.alist_transfer.move || task.addition.alist_transfer.copy)">
+                    <label class="col-sm-2 col-form-label">目标路径</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" class="form-control" v-model="task.addition.alist_transfer.target_path" placeholder="请输入 Alist 目标路径">
+                        <div class="input-group-append">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showAlistTargetPathSelect(index)">选择</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
@@ -690,6 +714,8 @@
         configModified: false,
         fileSelect: {
           index: null,
+          targetField: "savepath",
+          source: "quark",
           share: {},
           shareurl: "",
           stoken: "",
@@ -770,6 +796,7 @@
                 config_data.cookie = [config_data.cookie];
               // 添加星期预设
               config_data.tasklist = config_data.tasklist.map(task => {
+                this.ensureAlistTransferConfig(task);
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
@@ -789,6 +816,7 @@
                   this.taskDirs.push(parentDir);
               });
               this.newTask.addition = config_data.task_plugins_config_default;
+              this.ensureAlistTransferConfig(this.newTask);
               // 确保source配置存在
               if (!config_data.source) {
                 config_data.source = {};
@@ -874,6 +902,7 @@
         },
         addTask() {
           newTask = { ...this.newTask }
+          this.ensureAlistTransferConfig(newTask);
           newTask.taskname = this.taskNameFilter;
           if (this.formData.tasklist.length > 0) {
             lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
@@ -931,6 +960,31 @@
         removeShareurl(task, urlIndex) {
           if (task.shareurls.length > 1) {
             task.shareurls.splice(urlIndex, 1);
+          }
+        },
+        ensureAlistTransferConfig(task) {
+          if (!task.addition || typeof task.addition !== "object") {
+            Vue.set(task, "addition", {});
+          }
+          if (!task.addition.alist_transfer || typeof task.addition.alist_transfer !== "object") {
+            Vue.set(task.addition, "alist_transfer", {});
+          }
+          if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "move")) {
+            Vue.set(task.addition.alist_transfer, "move", false);
+          }
+          if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "copy")) {
+            Vue.set(task.addition.alist_transfer, "copy", false);
+          }
+          if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "target_path")) {
+            Vue.set(task.addition.alist_transfer, "target_path", "");
+          }
+        },
+        handleAlistTransferMode(task, mode) {
+          this.ensureAlistTransferConfig(task);
+          if (mode === "move" && task.addition.alist_transfer.move) {
+            task.addition.alist_transfer.copy = false;
+          } else if (mode === "copy" && task.addition.alist_transfer.copy) {
+            task.addition.alist_transfer.move = false;
           }
         },
         changeShareurl(task, urlIndex) {
@@ -1149,10 +1203,11 @@
             });
         },
         getSavepathDetail(params = 0) {
+          const source = this.fileSelect.source || 'quark';
           if (params.includes('/')) {
-            params = { path: params }
+            params = { path: params, source: source }
           } else {
-            params = { fid: params }
+            params = { fid: params, source: source }
           }
           this.modalLoading = true;
           axios.get('/get_savepath_detail', {
@@ -1171,6 +1226,8 @@
           });
         },
         showSavepathSelect(index) {
+          this.fileSelect.targetField = "savepath";
+          this.fileSelect.source = "quark";
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
           this.fileSelect.switchShare = false;
@@ -1182,6 +1239,23 @@
           $('#fileSelectModal').modal('toggle');
           this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.replace(/\/+/g, "/");
           this.getSavepathDetail(this.formData.tasklist[index].savepath);
+        },
+        showAlistTargetPathSelect(index) {
+          this.fileSelect.targetField = "alist_target_path";
+          this.fileSelect.source = "alist";
+          this.fileSelect.selectShare = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.switchShare = false;
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.error = undefined;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.index = index;
+          this.ensureAlistTransferConfig(this.formData.tasklist[index]);
+          const targetPath = (this.formData.tasklist[index].addition.alist_transfer.target_path || "/").replace(/\/+/g, "/");
+          this.formData.tasklist[index].addition.alist_transfer.target_path = targetPath;
+          $('#fileSelectModal').modal('toggle');
+          this.getSavepathDetail(targetPath);
         },
         getShareDetail() {
           this.modalLoading = true;
@@ -1270,9 +1344,19 @@
             }
             this.$set(task.shareurls, urlIndex, this.fileSelect.shareurl);
           } else {
-            this.formData.tasklist[this.fileSelect.index].savepath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
-            if (addTaskname) {
-              this.formData.tasklist[this.fileSelect.index].savepath += "/" + this.formData.tasklist[this.fileSelect.index].taskname
+            const selectedPath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
+            if (this.fileSelect.targetField === "alist_target_path") {
+              this.ensureAlistTransferConfig(this.formData.tasklist[this.fileSelect.index]);
+              let targetPath = selectedPath;
+              if (addTaskname) {
+                targetPath += "/" + this.formData.tasklist[this.fileSelect.index].taskname;
+              }
+              this.formData.tasklist[this.fileSelect.index].addition.alist_transfer.target_path = targetPath;
+            } else {
+              this.formData.tasklist[this.fileSelect.index].savepath = selectedPath;
+              if (addTaskname) {
+                this.formData.tasklist[this.fileSelect.index].savepath += "/" + this.formData.tasklist[this.fileSelect.index].taskname
+              }
             }
           }
           $('#fileSelectModal').modal('hide')
@@ -1361,6 +1445,7 @@
             try {
               let task = JSON.parse(text);
               task = { ...this.newTask, ...task };
+              this.ensureAlistTransferConfig(task);
               this.formData.tasklist.push(task);
               this.showToast("剪贴板参数已成功导入任务", "success");
               // 滚到最下

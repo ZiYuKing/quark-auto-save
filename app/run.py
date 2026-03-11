@@ -411,6 +411,83 @@ def get_share_detail():
 def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
+    source = request.args.get("source", "quark")
+    if source == "alist":
+        alist_cfg = config_data.get("plugins", {}).get("alist_transfer", {})
+        if not alist_cfg:
+            # 兼容旧配置
+            alist_cfg = config_data.get("plugins", {}).get("alist", {})
+        alist_url = (alist_cfg.get("url") or "").rstrip("/")
+        alist_token = alist_cfg.get("token") or ""
+        if not alist_url or not alist_token:
+            return jsonify(
+                {
+                    "success": False,
+                    "data": {"error": "AList 未配置 url/token，请先在插件配置中填写"},
+                }
+            )
+
+        path = request.args.get("path")
+        fid = request.args.get("fid", "0")
+        if path:
+            current_path = re.sub(r"/+", "/", path)
+        elif str(fid) == "0":
+            current_path = "/"
+        else:
+            current_path = str(fid) if str(fid).startswith("/") else f"/{fid}"
+            current_path = re.sub(r"/+", "/", current_path)
+        current_path = current_path or "/"
+
+        paths = []
+        if current_path != "/":
+            dir_names = [x for x in current_path.split("/") if x]
+            walk_path = ""
+            for dir_name in dir_names:
+                walk_path = f"{walk_path}/{dir_name}"
+                paths.append({"fid": walk_path, "name": dir_name})
+
+        payload = {
+            "path": current_path,
+            "refresh": True,
+            "password": "",
+            "page": 1,
+            "per_page": 0,
+        }
+        headers = {"Authorization": alist_token}
+        try:
+            response = requests.post(
+                f"{alist_url}/api/fs/list", headers=headers, json=payload, timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            return jsonify({"success": False, "data": {"error": f"AList 请求失败: {e}"}})
+
+        if data.get("code") != 200:
+            return jsonify(
+                {
+                    "success": False,
+                    "data": {"error": f"AList 获取目录失败: {data.get('message')}"},
+                }
+            )
+
+        list_data = []
+        for item in data.get("data", {}).get("content", []):
+            is_dir = bool(item.get("is_dir"))
+            name = item.get("name", "")
+            child_path = re.sub(r"/+", "/", f"{current_path.rstrip('/')}/{name}")
+            list_data.append(
+                {
+                    "fid": child_path if is_dir else "",
+                    "file_name": name,
+                    "dir": is_dir,
+                    "include_items": item.get("total", 0),
+                    "size": item.get("size", 0),
+                    "updated_at": item.get("modified", ""),
+                }
+            )
+        return jsonify({"success": True, "data": {"list": list_data, "paths": paths}})
+
     account = Quark(config_data["cookie"][0])
     paths = []
     if path := request.args.get("path"):
