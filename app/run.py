@@ -362,14 +362,24 @@ def get_share_detail():
         magic_regex = request.json.get("magic_regex", {})
         mr = MagicRename(magic_regex)
         mr.set_taskname(task.get("taskname", ""))
-        account = Quark(config_data["cookie"][0])
-        get_fids = account.get_fids([task.get("savepath", "")])
-        if get_fids:
-            dir_file_list = account.ls_dir(get_fids[0]["fid"])["data"]["list"]
-            dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+        saved_dirs = task.get("saved_dirs", [])
+        if isinstance(saved_dirs, list):
+            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
         else:
-            dir_file_list = []
-            dir_filename_list = []
+            saved_dirs = []
+
+        if saved_dirs:
+            dir_file_list = [{"file_name": name, "dir": False} for name in saved_dirs]
+            dir_filename_list = saved_dirs
+        else:
+            account = Quark(config_data["cookie"][0])
+            get_fids = account.get_fids([task.get("savepath", "")])
+            if get_fids:
+                dir_file_list = account.ls_dir(get_fids[0]["fid"])["data"]["list"]
+                dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+            else:
+                dir_file_list = []
+                dir_filename_list = []
 
         pattern, replace = mr.magic_regex_conv(
             task.get("pattern", ""), task.get("replace", "")

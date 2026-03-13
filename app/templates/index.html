@@ -380,6 +380,28 @@
                       </div>
                     </div>
                   </div>
+                  <div class="form-group row" title="用于判断是否已转存；为空时自动读取保存路径目录，非空时仅使用此列表判断">
+                    <label class="col-sm-2 col-form-label">已转存目录</label>
+                    <div class="col-sm-10">
+                      <div class="saved-dir-box">
+                        <div v-for="(savedName, savedIndex) in task.saved_dirs" :key="savedIndex" class="saved-dir-item" :class="{'dragging': savedDirDrag.taskIndex === index && savedDirDrag.fromIndex === savedIndex}" @dragover.prevent="onSavedDirDragOver(index, savedIndex, $event)" @drop.prevent="onSavedDirDrop(task, index, savedIndex, $event)">
+                          <span class="saved-dir-drag-handle" draggable="true" @dragstart="onSavedDirDragStart(index, savedIndex, $event)" @dragend="onSavedDirDragEnd" title="拖拽排序">
+                            <i class="bi bi-list"></i>
+                          </span>
+                          <div class="input-group">
+                            <input type="text" class="form-control" v-model="task.saved_dirs[savedIndex]" placeholder="例如：斗破苍穹.S05E001.mp4">
+                            <div class="input-group-append">
+                              <button type="button" class="btn btn-outline-danger" @click="removeSavedDir(task, savedIndex)" title="删除"><i class="bi bi-trash"></i></button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="saved-dir-drop-tail" @dragover.prevent="onSavedDirDragOver(index, task.saved_dirs.length, $event)" @drop.prevent="onSavedDirDrop(task, index, task.saved_dirs.length, $event)">
+                        拖到这里可放到末尾
+                      </div>
+                      <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
+                    </div>
+                  </div>
                   <div class="form-group row" title="可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件">
                     <label class="col-sm-2 col-form-label">保存规则</label>
                     <div class="col-sm-10">
@@ -687,6 +709,7 @@
         newTask: {
           taskname: "",
           shareurls: [""],
+          saved_dirs: [],
           savepath: "/",
           pattern: "",
           replace: "",
@@ -728,6 +751,10 @@
           sortBy: "updated_at",
           sortOrder: "desc"
         },
+        savedDirDrag: {
+          taskIndex: null,
+          fromIndex: null
+        },
       },
       filters: {
         ts2date: function (value) {
@@ -767,6 +794,9 @@
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
       },
       methods: {
+        deepClone(obj) {
+          return JSON.parse(JSON.stringify(obj));
+        },
         changeTab(tab) {
           this.activeTab = tab;
           if (window.innerWidth <= 768) {
@@ -797,6 +827,9 @@
               // 添加星期预设
               config_data.tasklist = config_data.tasklist.map(task => {
                 this.ensureAlistTransferConfig(task);
+                if (!Array.isArray(task.saved_dirs)) {
+                  task.saved_dirs = [];
+                }
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
@@ -901,7 +934,7 @@
             this.$delete(this.formData.push_config, key);
         },
         addTask() {
-          newTask = { ...this.newTask }
+          newTask = this.deepClone(this.newTask)
           this.ensureAlistTransferConfig(newTask);
           newTask.taskname = this.taskNameFilter;
           if (this.formData.tasklist.length > 0) {
@@ -961,6 +994,54 @@
           if (task.shareurls.length > 1) {
             task.shareurls.splice(urlIndex, 1);
           }
+        },
+        addSavedDir(task) {
+          if (!Array.isArray(task.saved_dirs)) {
+            this.$set(task, 'saved_dirs', []);
+          }
+          task.saved_dirs.push('');
+        },
+        removeSavedDir(task, savedIndex) {
+          if (!Array.isArray(task.saved_dirs)) {
+            this.$set(task, 'saved_dirs', []);
+            return;
+          }
+          task.saved_dirs.splice(savedIndex, 1);
+        },
+        onSavedDirDragStart(taskIndex, fromIndex, event) {
+          this.savedDirDrag.taskIndex = taskIndex;
+          this.savedDirDrag.fromIndex = fromIndex;
+          if (event && event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", `${taskIndex}:${fromIndex}`);
+          }
+        },
+        onSavedDirDragOver(taskIndex, toIndex, event) {
+          if (this.savedDirDrag.taskIndex !== taskIndex) {
+            return;
+          }
+          if (event && event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+          }
+        },
+        onSavedDirDrop(task, taskIndex, toIndex, event) {
+          if (this.savedDirDrag.taskIndex !== taskIndex || !Array.isArray(task.saved_dirs)) {
+            this.onSavedDirDragEnd();
+            return;
+          }
+          const fromIndex = this.savedDirDrag.fromIndex;
+          if (fromIndex === null || fromIndex === toIndex || fromIndex < 0 || fromIndex >= task.saved_dirs.length) {
+            this.onSavedDirDragEnd();
+            return;
+          }
+          const movedItem = task.saved_dirs.splice(fromIndex, 1)[0];
+          const targetIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+          task.saved_dirs.splice(targetIndex, 0, movedItem);
+          this.onSavedDirDragEnd();
+        },
+        onSavedDirDragEnd() {
+          this.savedDirDrag.taskIndex = null;
+          this.savedDirDrag.fromIndex = null;
         },
         ensureAlistTransferConfig(task) {
           if (!task.addition || typeof task.addition !== "object") {
@@ -1444,7 +1525,7 @@
           if (text) {
             try {
               let task = JSON.parse(text);
-              task = { ...this.newTask, ...task };
+              task = Object.assign(this.deepClone(this.newTask), task);
               this.ensureAlistTransferConfig(task);
               this.formData.tasklist.push(task);
               this.showToast("剪贴板参数已成功导入任务", "success");

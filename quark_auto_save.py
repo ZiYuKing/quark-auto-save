@@ -944,8 +944,18 @@ class Quark:
                 print(f"❌ 目录 {savepath} fid获取失败，跳过转存")
                 return tree
         to_pdir_fid = self.savepath_fid[savepath]
-        dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
-        dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+        saved_dirs = task.get("saved_dirs", [])
+        if isinstance(saved_dirs, list):
+            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
+        else:
+            saved_dirs = []
+
+        if saved_dirs:
+            dir_file_list = [{"file_name": name, "dir": False} for name in saved_dirs]
+            dir_filename_list = saved_dirs
+        else:
+            dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
+            dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
         
         # 合并已转存的文件名（来自之前处理的链接）
         dir_filename_list.extend(already_saved_files)

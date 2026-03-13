@@ -69,6 +69,56 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   z-index: 1021;
 }
 
+.saved-dir-box {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background-color: #fff;
+}
+
+.saved-dir-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.saved-dir-item+.saved-dir-item {
+  margin-top: 0.5rem;
+}
+
+.saved-dir-item.dragging {
+  opacity: 0.6;
+}
+
+.saved-dir-drag-handle {
+  cursor: grab;
+  color: #6c757d;
+  user-select: none;
+  padding: 0.35rem 0.45rem;
+  line-height: 1;
+}
+
+.saved-dir-drag-handle:active {
+  cursor: grabbing;
+}
+
+.saved-dir-item .input-group {
+  flex: 1;
+}
+
+.saved-dir-drop-tail {
+  border: 1px dashed #ced4da;
+  border-radius: 0.25rem;
+  color: #6c757d;
+  font-size: 12px;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
 /*
 * Sidebar
 */
