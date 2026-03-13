@@ -399,7 +399,10 @@
                       <div class="saved-dir-drop-tail" @dragover.prevent="onSavedDirDragOver(index, task.saved_dirs.length, $event)" @drop.prevent="onSavedDirDrop(task, index, task.saved_dirs.length, $event)">
                         拖到这里可放到末尾
                       </div>
-                      <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
+                      <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="loadSavedDirsFromSavepath(index, task)"><i class="bi bi-arrow-clockwise"></i> 读取已转存文件</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
+                      </div>
                     </div>
                   </div>
                   <div class="form-group row" title="可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件">
@@ -1000,6 +1003,30 @@
             this.$set(task, 'saved_dirs', []);
           }
           task.saved_dirs.push('');
+        },
+        loadSavedDirsFromSavepath(index, task) {
+          const savepath = (task.savepath || "/").replace(/\/+/g, "/");
+          this.modalLoading = true;
+          axios.get('/get_savepath_detail', {
+            params: {
+              path: savepath,
+              source: 'quark'
+            }
+          }).then(response => {
+            const list = (((response || {}).data || {}).data || {}).list || [];
+            const names = list
+              .filter(item => item && !item.dir && item.file_name)
+              .map(item => String(item.file_name).trim())
+              .filter(name => !!name);
+            names.sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' }));
+            this.$set(task, 'saved_dirs', names);
+            this.showToast(`已读取 ${names.length} 个已转存文件名`, 'success');
+          }).catch(error => {
+            console.error('Error /get_savepath_detail for saved_dirs:', error);
+            this.showToast('读取保存目录文件列表失败', 'error');
+          }).finally(() => {
+            this.modalLoading = false;
+          });
         },
         removeSavedDir(task, savedIndex) {
           if (!Array.isArray(task.saved_dirs)) {
