@@ -401,6 +401,8 @@
                       </div>
                       <div class="btn-group" role="group">
                         <button type="button" class="btn btn-outline-secondary btn-sm" @click="loadSavedDirsFromSavepath(index, task)"><i class="bi bi-arrow-clockwise"></i> 读取已转存文件</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="toggleSavedDirsSort(index, task)"><i class="bi bi-sort-numeric-down"></i> {{ getSavedDirsSortLabel(index) }}</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="showMissingEpisodes(index, task)"><i class="bi bi-search"></i> 缺失剧集</button>
                         <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
                         <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSavedDirs(task)"><i class="bi bi-x-circle"></i> 全部清除</button>
                       </div>
@@ -446,6 +448,19 @@
                         <input type="text" class="form-control" v-model="task.addition.alist_transfer.target_path" placeholder="请输入 Alist 目标路径">
                         <div class="input-group-append">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showAlistTargetPathSelect(index)">选择</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" v-if="task.addition && task.addition.alist_transfer && (task.addition.alist_transfer.move || task.addition.alist_transfer.copy)">
+                    <label class="col-sm-2 col-form-label">现有文件</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-text">
+                          <input type="checkbox" v-model="task.addition.alist_transfer.overwrite" @change="handleAlistExistsMode(task, 'overwrite')">&nbsp;覆盖现有文件
+                        </div>
+                        <div class="input-group-text">
+                          <input type="checkbox" v-model="task.addition.alist_transfer.skip_existing" @change="handleAlistExistsMode(task, 'skip_existing')">&nbsp;跳过现有文件
                         </div>
                       </div>
                     </div>
@@ -665,6 +680,28 @@
       </div>
     </div>
 
+    <!-- 模态框 缺失剧集 -->
+    <div class="modal" tabindex="-1" id="missingEpisodesModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><b>缺失剧集</b></h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="small text-muted mb-2" v-if="missingEpisodes.taskname">任务：{{ missingEpisodes.taskname }}</div>
+            <div class="small text-muted mb-2" v-if="missingEpisodes.summary">{{ missingEpisodes.summary }}</div>
+            <div v-if="missingEpisodes.lines.length">
+              <div v-for="(line, lineIndex) in missingEpisodes.lines" :key="lineIndex" class="small">{{ line }}</div>
+            </div>
+            <div v-else class="text-muted">未识别到缺失剧集</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast 提示 -->
     <div class="toast-container">
       <div v-for="toast in toasts" :key="toast.id" class="toast show shadow-sm" :class="toast.type" role="alert" aria-live="assertive" aria-atomic="true">
@@ -759,6 +796,12 @@
           taskIndex: null,
           fromIndex: null
         },
+        savedDirsSortOrder: {},
+        missingEpisodes: {
+          taskname: "",
+          lines: [],
+          summary: ""
+        },
       },
       filters: {
         ts2date: function (value) {
@@ -833,6 +876,8 @@
                 this.ensureAlistTransferConfig(task);
                 if (!Array.isArray(task.saved_dirs)) {
                   task.saved_dirs = [];
+                } else {
+                  this.sortSavedDirsInPlace(task, "desc");
                 }
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
@@ -854,6 +899,7 @@
               });
               this.newTask.addition = config_data.task_plugins_config_default;
               this.ensureAlistTransferConfig(this.newTask);
+              this.savedDirsSortOrder = {};
               // 确保source配置存在
               if (!config_data.source) {
                 config_data.source = {};
@@ -1005,6 +1051,33 @@
           }
           task.saved_dirs.push('');
         },
+        getSavedDirsSortOrder(index) {
+          return this.savedDirsSortOrder[index] || "desc";
+        },
+        getSavedDirsSortLabel(index) {
+          return this.getSavedDirsSortOrder(index) === "desc" ? "从大到小" : "从小到大";
+        },
+        naturalCompare(a, b) {
+          return String(a).localeCompare(String(b), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+        },
+        sortSavedDirsInPlace(task, order = "desc") {
+          if (!Array.isArray(task.saved_dirs)) {
+            this.$set(task, 'saved_dirs', []);
+            return;
+          }
+          task.saved_dirs = task.saved_dirs
+            .map(name => String(name || "").trim())
+            .filter(name => !!name)
+            .sort((a, b) => this.naturalCompare(a, b));
+          if (order === "desc") {
+            task.saved_dirs.reverse();
+          }
+        },
+        toggleSavedDirsSort(index, task) {
+          const nextOrder = this.getSavedDirsSortOrder(index) === "desc" ? "asc" : "desc";
+          this.sortSavedDirsInPlace(task, nextOrder);
+          this.$set(this.savedDirsSortOrder, index, nextOrder);
+        },
         loadSavedDirsFromSavepath(index, task) {
           const savepath = (task.savepath || "/").replace(/\/+/g, "/");
           this.modalLoading = true;
@@ -1019,8 +1092,9 @@
               .filter(item => item && !item.dir && item.file_name)
               .map(item => String(item.file_name).trim())
               .filter(name => !!name);
-            names.sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' }));
+            names.sort((a, b) => this.naturalCompare(a, b)).reverse();
             this.$set(task, 'saved_dirs', names);
+            this.$set(this.savedDirsSortOrder, index, "desc");
             this.showToast(`已读取 ${names.length} 个已转存文件名`, 'success');
           }).catch(error => {
             console.error('Error /get_savepath_detail for saved_dirs:', error);
@@ -1039,6 +1113,101 @@
           }
           this.$set(task, 'saved_dirs', []);
           this.showToast('已清空已转存目录', 'success');
+        },
+        extractEpisodeToken(name, task) {
+          const filename = String(name || "");
+          let match = filename.match(/(S\d{1,3}E)(\d{1,4})/i);
+          if (match) {
+            const idx = match.index + match[1].length;
+            return {
+              key: `${filename.slice(0, idx)}|${filename.slice(idx + match[2].length)}`,
+              prefix: filename.slice(0, idx),
+              suffix: filename.slice(idx + match[2].length),
+              width: match[2].length,
+              episode: parseInt(match[2], 10)
+            };
+          }
+          match = filename.match(/(E[Pp]?)(\d{1,4})/);
+          if (match) {
+            const idx = match.index + match[1].length;
+            return {
+              key: `${filename.slice(0, idx)}|${filename.slice(idx + match[2].length)}`,
+              prefix: filename.slice(0, idx),
+              suffix: filename.slice(idx + match[2].length),
+              width: match[2].length,
+              episode: parseInt(match[2], 10)
+            };
+          }
+          match = filename.match(/(第)\s*(\d{1,4})\s*([集话話])/);
+          if (match) {
+            const epMatch = /第\s*(\d{1,4})\s*[集话話]/.exec(filename);
+            const epText = epMatch[1];
+            const start = epMatch.index;
+            const end = epMatch.index + epMatch[0].length;
+            return {
+              key: `${filename.slice(0, start)}第|${filename.slice(end).replace(/^\s*/, '')}|${match[3]}`,
+              prefix: `${filename.slice(0, start)}第`,
+              suffix: `${match[3]}${filename.slice(end).replace(/^\s*/, '')}`,
+              width: epText.length,
+              episode: parseInt(epText, 10)
+            };
+          }
+          if (!task || (!task.pattern && !task.replace)) {
+            match = filename.match(/(\d{1,4})(?=\s*[集话話])/);
+            if (match) {
+              const idx = match.index;
+              return {
+                key: `${filename.slice(0, idx)}|${filename.slice(idx + match[1].length)}`,
+                prefix: filename.slice(0, idx),
+                suffix: filename.slice(idx + match[1].length),
+                width: match[1].length,
+                episode: parseInt(match[1], 10)
+              };
+            }
+          }
+          return null;
+        },
+        showMissingEpisodes(index, task) {
+          const names = Array.isArray(task.saved_dirs) ? task.saved_dirs.map(x => String(x || "").trim()).filter(Boolean) : [];
+          if (!names.length) {
+            this.showToast('已转存目录为空', 'warning');
+            return;
+          }
+          const groups = {};
+          names.forEach(name => {
+            const token = this.extractEpisodeToken(name, task);
+            if (!token || Number.isNaN(token.episode)) {
+              return;
+            }
+            if (!groups[token.key]) {
+              groups[token.key] = {
+                prefix: token.prefix,
+                suffix: token.suffix,
+                width: token.width,
+                episodes: new Set()
+              };
+            }
+            groups[token.key].episodes.add(token.episode);
+          });
+          const lines = [];
+          Object.keys(groups).forEach(key => {
+            const group = groups[key];
+            const eps = Array.from(group.episodes).sort((a, b) => a - b);
+            if (!eps.length) return;
+            const min = eps[0];
+            const max = eps[eps.length - 1];
+            for (let ep = max; ep >= min; ep -= 1) {
+              if (!group.episodes.has(ep)) {
+                const epText = String(ep).padStart(group.width, '0');
+                lines.push(`${group.prefix}${epText}${group.suffix}`);
+              }
+            }
+          });
+          lines.sort((a, b) => this.naturalCompare(b, a));
+          this.missingEpisodes.taskname = task.taskname || `#${index + 1}`;
+          this.missingEpisodes.lines = lines;
+          this.missingEpisodes.summary = lines.length ? `共缺失 ${lines.length} 集` : '未发现缺失剧集';
+          $('#missingEpisodesModal').modal('show');
         },
         removeSavedDir(task, savedIndex) {
           if (!Array.isArray(task.saved_dirs)) {
@@ -1098,6 +1267,12 @@
           if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "target_path")) {
             Vue.set(task.addition.alist_transfer, "target_path", "");
           }
+          if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "overwrite")) {
+            Vue.set(task.addition.alist_transfer, "overwrite", false);
+          }
+          if (!Object.prototype.hasOwnProperty.call(task.addition.alist_transfer, "skip_existing")) {
+            Vue.set(task.addition.alist_transfer, "skip_existing", true);
+          }
         },
         handleAlistTransferMode(task, mode) {
           this.ensureAlistTransferConfig(task);
@@ -1105,6 +1280,22 @@
             task.addition.alist_transfer.copy = false;
           } else if (mode === "copy" && task.addition.alist_transfer.copy) {
             task.addition.alist_transfer.move = false;
+          }
+        },
+        handleAlistExistsMode(task, mode) {
+          this.ensureAlistTransferConfig(task);
+          if (mode === "overwrite") {
+            if (task.addition.alist_transfer.overwrite) {
+              task.addition.alist_transfer.skip_existing = false;
+            } else if (!task.addition.alist_transfer.skip_existing) {
+              task.addition.alist_transfer.skip_existing = true;
+            }
+          } else if (mode === "skip_existing") {
+            if (task.addition.alist_transfer.skip_existing) {
+              task.addition.alist_transfer.overwrite = false;
+            } else if (!task.addition.alist_transfer.overwrite) {
+              task.addition.alist_transfer.overwrite = true;
+            }
           }
         },
         changeShareurl(task, urlIndex) {

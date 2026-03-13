@@ -14,6 +14,8 @@ class Alist_transfer:
         "move": False,
         "copy": False,
         "target_path": "",
+        "overwrite": False,
+        "skip_existing": True,
     }
     is_active = False
 
@@ -67,6 +69,12 @@ class Alist_transfer:
             print("Alist转存: 目标路径为空，已跳过")
             return
         dst_dir = self._norm_path(dst_dir)
+        overwrite = bool(task_config.get("overwrite", False))
+        skip_existing = bool(task_config.get("skip_existing", True))
+        if overwrite and skip_existing:
+            overwrite = False
+        if not overwrite and not skip_existing:
+            skip_existing = True
 
         savepath = task.get("savepath", "")
         src_dir = self._norm_path(f"{self.root_dir}/{savepath}")
@@ -80,7 +88,7 @@ class Alist_transfer:
             return
 
         action = "move" if do_move else "copy"
-        self.fs_action(action, src_dir, dst_dir, names)
+        self.fs_action(action, src_dir, dst_dir, names, overwrite, skip_existing)
 
     def _norm_path(self, path):
         p = re.sub(r"/+", "/", (path or "").strip())
@@ -150,15 +158,15 @@ class Alist_transfer:
             print(f"📁 Alist转存刷新: 获取文件列表出错❌ {e}")
         return {}
 
-    def fs_action(self, action, src_dir, dst_dir, names):
+    def fs_action(self, action, src_dir, dst_dir, names, overwrite=False, skip_existing=True):
         url = f"{self.url}/api/fs/{action}"
         headers = {"Authorization": self.token}
         payload = {
             "src_dir": src_dir,
             "dst_dir": dst_dir,
             "names": names,
-            "overwrite": True,
-            "skip_existing": False,
+            "overwrite": overwrite,
+            "skip_existing": skip_existing,
         }
         try:
             response = requests.request("POST", url, headers=headers, json=payload)
@@ -174,4 +182,3 @@ class Alist_transfer:
                 )
         except Exception as e:
             print(f"📦 Alist转存[{action}] 请求异常❌ {e}")
-
