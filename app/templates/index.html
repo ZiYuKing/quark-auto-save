@@ -401,6 +401,7 @@
                       </div>
                       <div class="btn-group" role="group">
                         <button type="button" class="btn btn-outline-secondary btn-sm" @click="loadSavedDirsFromSavepath(index, task)"><i class="bi bi-arrow-clockwise"></i> 读取已转存文件</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSavedDirs(task)"><i class="bi bi-x-circle"></i> 全部清除</button>
                         <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
                       </div>
                     </div>
@@ -1027,6 +1028,17 @@
           }).finally(() => {
             this.modalLoading = false;
           });
+        },
+        clearSavedDirs(task) {
+          if (!Array.isArray(task.saved_dirs) || task.saved_dirs.length === 0) {
+            this.$set(task, 'saved_dirs', []);
+            return;
+          }
+          if (!confirm(`确认清空已转存目录吗？当前共 ${task.saved_dirs.length} 项`)) {
+            return;
+          }
+          this.$set(task, 'saved_dirs', []);
+          this.showToast('已清空已转存目录', 'success');
         },
         removeSavedDir(task, savedIndex) {
           if (!Array.isArray(task.saved_dirs)) {
