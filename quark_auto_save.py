@@ -902,13 +902,38 @@ class Quark:
                                 )
         
         if has_updates:
-            self.do_rename(merged_tree)
+            final_saved_names = self.do_rename(merged_tree)
+            added_count, added_names = self._update_task_saved_dirs(task, final_saved_names)
+            if added_count > 0:
+                display_names = "，".join(added_names[:10])
+                if added_count > 10:
+                    display_names += f" ...（共{added_count}项）"
+                print(f"已转存目录自动写入 +{added_count}: {display_names}")
+            else:
+                print("已转存目录自动写入: 无新增")
             print()
             add_notify(f"✅《{task['taskname']}》添加追更：\n{merged_tree}")
             return merged_tree
         else:
             print(f"任务结束：没有新的转存任务")
             return False
+
+    def _update_task_saved_dirs(self, task, file_names):
+        if not isinstance(file_names, list) or not file_names:
+            return 0, []
+        saved_dirs = task.get("saved_dirs", [])
+        if isinstance(saved_dirs, list):
+            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
+        else:
+            saved_dirs = []
+        added_names = []
+        for name in file_names:
+            name = str(name).strip()
+            if name and name not in saved_dirs:
+                saved_dirs.append(name)
+                added_names.append(name)
+        task["saved_dirs"] = saved_dirs
+        return len(added_names), added_names
 
     def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path="", already_saved_files=None):
         tree = Tree()
@@ -1118,6 +1143,7 @@ class Quark:
         return tree
 
     def do_rename(self, tree, node_id=None):
+        final_saved_names = []
         if node_id is None:
             node_id = tree.root
         for child in tree.children(node_id):
@@ -1125,11 +1151,20 @@ class Quark:
             if file.get("is_dir"):
                 # self.do_rename(tree, child.identifier)
                 pass
-            elif file.get("file_name_re") and file["file_name_re"] != file["file_name"]:
-                rename_ret = self.rename(file["fid"], file["file_name_re"])
-                print(f"重命名：{file['file_name']} → {file['file_name_re']}")
-                if rename_ret["code"] != 0:
-                    print(f"      ↑ 失败，{rename_ret['message']}")
+            else:
+                final_name = file.get("file_name", "")
+                if file.get("file_name_re") and file["file_name_re"] != file["file_name"]:
+                    rename_ret = self.rename(file["fid"], file["file_name_re"])
+                    print(f"重命名：{file['file_name']} → {file['file_name_re']}")
+                    if rename_ret["code"] != 0:
+                        print(f"      ↑ 失败，{rename_ret['message']}")
+                    else:
+                        final_name = file["file_name_re"]
+                elif file.get("file_name_re"):
+                    final_name = file["file_name_re"]
+                if final_name:
+                    final_saved_names.append(final_name)
+        return final_saved_names
 
     def _get_file_icon(self, f):
         if f.get("dir"):
@@ -1306,6 +1341,58 @@ def do_save(account, tasklist=[]):
     print()
 
 
+def merge_runtime_saved_dirs_to_config(runtime_tasklist, config_tasklist):
+    if not isinstance(runtime_tasklist, list) or not isinstance(config_tasklist, list):
+        return
+
+    def normalize_shareurls(task):
+        if isinstance(task.get("shareurls"), list):
+            return [str(x).strip() for x in task.get("shareurls", []) if str(x).strip()]
+        if task.get("shareurl"):
+            return [str(task.get("shareurl")).strip()]
+        return []
+
+    for runtime_task in runtime_tasklist:
+        runtime_saved_dirs = runtime_task.get("saved_dirs", [])
+        if not isinstance(runtime_saved_dirs, list):
+            continue
+        runtime_saved_dirs = [
+            str(x).strip() for x in runtime_saved_dirs if str(x).strip()
+        ]
+        if not runtime_saved_dirs:
+            continue
+
+        runtime_name = str(runtime_task.get("taskname", "")).strip()
+        runtime_savepath = str(runtime_task.get("savepath", "")).strip()
+        runtime_shareurls = normalize_shareurls(runtime_task)
+
+        matched_task = None
+        for config_task in config_tasklist:
+            if str(config_task.get("taskname", "")).strip() != runtime_name:
+                continue
+            if str(config_task.get("savepath", "")).strip() != runtime_savepath:
+                continue
+            if normalize_shareurls(config_task) != runtime_shareurls:
+                continue
+            matched_task = config_task
+            break
+
+        if not matched_task:
+            continue
+
+        current_saved_dirs = matched_task.get("saved_dirs", [])
+        if isinstance(current_saved_dirs, list):
+            current_saved_dirs = [
+                str(x).strip() for x in current_saved_dirs if str(x).strip()
+            ]
+        else:
+            current_saved_dirs = []
+        for name in runtime_saved_dirs:
+            if name not in current_saved_dirs:
+                current_saved_dirs.append(name)
+        matched_task["saved_dirs"] = current_saved_dirs
+
+
 def main():
     global CONFIG_DATA
     start_time = datetime.now()
@@ -1377,6 +1464,9 @@ def main():
         # 任务列表
         if tasklist_from_env:
             do_save(accounts[0], tasklist_from_env)
+            merge_runtime_saved_dirs_to_config(
+                tasklist_from_env, CONFIG_DATA.get("tasklist", [])
+            )
         else:
             do_save(accounts[0], CONFIG_DATA.get("tasklist", []))
         print()
