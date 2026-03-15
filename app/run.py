@@ -447,6 +447,20 @@ def build_saved_dirs():
     mr.set_taskname(task.get("taskname", ""))
     pattern, replace = mr.magic_regex_conv(task.get("pattern", ""), task.get("replace", ""))
     taskname = str(task.get("taskname", "")).strip()
+    has_backref = bool(re.search(r"\\\d+", replace or ""))
+
+    def render_replace_with_episode(repl, ep):
+        ep_text = str(ep)
+
+        def _sub(m):
+            idx = int(m.group(1))
+            if idx == 2:
+                return ep_text
+            if idx == 3:
+                return "mp4"
+            return ""
+
+        return re.sub(r"\\(\d+)", _sub, repl)
 
     def build_name_for_episode(ep):
         ep2 = str(ep).zfill(2)
@@ -474,11 +488,18 @@ def build_saved_dirs():
             chosen = candidates[0]
 
         name = chosen
-        if replace:
+        used_regex_replace = False
+        if replace and pattern:
             try:
-                name = mr.sub(pattern, replace, chosen)
+                if re.search(pattern, chosen):
+                    name = mr.sub(pattern, replace, chosen)
+                    used_regex_replace = True
             except Exception:
-                name = chosen
+                used_regex_replace = False
+        if replace and has_backref and not used_regex_replace:
+            name = render_replace_with_episode(replace, ep)
+        elif replace and not used_regex_replace:
+            name = replace
         name = os.path.splitext(str(name).strip())[0]
         return name or f"第{ep}集"
 
