@@ -458,7 +458,7 @@ def build_saved_dirs():
                 return ep_text
             if idx == 3:
                 return "mp4"
-            return ""
+            return ep_text
 
         return re.sub(r"\\(\d+)", _sub, repl)
 
@@ -488,18 +488,19 @@ def build_saved_dirs():
             chosen = candidates[0]
 
         name = chosen
-        used_regex_replace = False
-        if replace and pattern:
-            try:
-                if re.search(pattern, chosen):
-                    name = mr.sub(pattern, replace, chosen)
-                    used_regex_replace = True
-            except Exception:
-                used_regex_replace = False
-        if replace and has_backref and not used_regex_replace:
-            name = render_replace_with_episode(replace, ep)
-        elif replace and not used_regex_replace:
-            name = replace
+        if replace:
+            # 以“替换表达式”优先：不依赖 pattern 是否匹配
+            if has_backref:
+                name = render_replace_with_episode(replace, ep)
+            else:
+                try:
+                    # pattern 不命中时也直接使用 replace 模板
+                    if pattern and re.search(pattern, chosen):
+                        name = mr.sub(pattern, replace, chosen)
+                    else:
+                        name = mr.sub("", replace, chosen)
+                except Exception:
+                    name = replace
         name = os.path.splitext(str(name).strip())[0]
         return name or f"第{ep}集"
 
