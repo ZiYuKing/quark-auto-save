@@ -716,6 +716,13 @@
           <div class="modal-body">
             <div class="small text-muted mb-2" v-if="savedDirEpisodePicker.taskname">任务：{{ savedDirEpisodePicker.taskname }}</div>
             <div class="small text-muted mb-2">预设可选 {{ savedDirEpisodePicker.maxEpisode }} 集，点击 ... 可继续增加</div>
+            <div class="btn-group mb-2" role="group">
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="selectNextEpisodes(10)">选择10集</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="selectNextEpisodes(20)">选择20集</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="selectNextEpisodes(50)">选择50集</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="selectNextEpisodes(100)">选择100集</button>
+              <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSelectedEpisodes">全部清除</button>
+            </div>
             <div class="saved-dir-episode-list" ref="savedDirEpisodeList">
               <button
                 type="button"
@@ -1164,6 +1171,26 @@
         },
         appendSavedDirEpisodes() {
           this.savedDirEpisodePicker.maxEpisode += 50;
+        },
+        selectNextEpisodes(count) {
+          const n = parseInt(count, 10);
+          if (!n || n <= 0) return;
+          const selected = this.savedDirEpisodePicker.selectedEpisodes;
+          const last = selected.length ? Math.max(...selected) : 0;
+          const start = last + 1;
+          const end = last + n;
+          while (this.savedDirEpisodePicker.maxEpisode < end) {
+            this.savedDirEpisodePicker.maxEpisode += 50;
+          }
+          for (let ep = start; ep <= end; ep += 1) {
+            if (!selected.includes(ep)) {
+              selected.push(ep);
+            }
+          }
+          selected.sort((a, b) => a - b);
+        },
+        clearSelectedEpisodes() {
+          this.savedDirEpisodePicker.selectedEpisodes = [];
         },
         isSavedDirEpisodeSelected(episode) {
           return this.savedDirEpisodePicker.selectedEpisodes.includes(episode);
