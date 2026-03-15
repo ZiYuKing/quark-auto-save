@@ -34,6 +34,34 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark, Config, MagicRename
 
+KNOWN_MEDIA_EXTS = {
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".m4v",
+    ".ts",
+    ".mpg",
+    ".mpeg",
+    ".rmvb",
+    ".srt",
+    ".ass",
+    ".ssa",
+    ".vtt",
+}
+
+
+def strip_known_ext(name):
+    text = str(name or "").strip()
+    if not text:
+        return ""
+    root, ext = os.path.splitext(text)
+    if ext.lower() in KNOWN_MEDIA_EXTS:
+        return root
+    return text
+
 print(
     r"""
    ____    ___   _____
@@ -366,7 +394,7 @@ def get_share_detail():
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
             saved_dirs = [
-                os.path.splitext(str(x).strip())[0]
+                strip_known_ext(x)
                 for x in saved_dirs
                 if str(x).strip()
             ]
@@ -501,7 +529,7 @@ def build_saved_dirs():
                         name = mr.sub("", replace, chosen)
                 except Exception:
                     name = replace
-        name = os.path.splitext(str(name).strip())[0]
+        name = strip_known_ext(name)
         return name or f"第{ep}集"
 
     names = [build_name_for_episode(ep) for ep in episodes]

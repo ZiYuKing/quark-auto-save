@@ -33,6 +33,33 @@ except:
 CONFIG_DATA = {}
 NOTIFYS = []
 GH_PROXY = os.environ.get("GH_PROXY", "https://ghproxy.net/")
+KNOWN_MEDIA_EXTS = {
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".m4v",
+    ".ts",
+    ".mpg",
+    ".mpeg",
+    ".rmvb",
+    ".srt",
+    ".ass",
+    ".ssa",
+    ".vtt",
+}
+
+
+def strip_known_ext(name):
+    text = str(name or "").strip()
+    if not text:
+        return ""
+    root, ext = os.path.splitext(text)
+    if ext.lower() in KNOWN_MEDIA_EXTS:
+        return root
+    return text
 
 
 # 发送通知消息
@@ -349,8 +376,8 @@ class MagicRename:
             return re.sub(r"(?i)S0*(\d{1,3})E0*(\d{1,4})", _replace, name)
 
         if ignore_ext:
-            filename = os.path.splitext(filename)[0]
-            filename_list = [os.path.splitext(f)[0] for f in filename_list]
+            filename = strip_known_ext(filename)
+            filename_list = [strip_known_ext(f) for f in filename_list]
         # {I+} 模式，用I通配数字序号
         if match := re.search(r"\{I+\}", filename):
             magic_i = match.group()
@@ -924,7 +951,7 @@ class Quark:
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
             saved_dirs = [
-                os.path.splitext(str(x).strip())[0]
+                strip_known_ext(x)
                 for x in saved_dirs
                 if str(x).strip()
             ]
@@ -932,7 +959,7 @@ class Quark:
             saved_dirs = []
         added_names = []
         for name in file_names:
-            name = os.path.splitext(str(name).strip())[0]
+            name = strip_known_ext(name)
             if name and name not in saved_dirs:
                 saved_dirs.append(name)
                 added_names.append(name)
@@ -976,7 +1003,7 @@ class Quark:
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
             saved_dirs = [
-                os.path.splitext(str(x).strip())[0]
+                strip_known_ext(x)
                 for x in saved_dirs
                 if str(x).strip()
             ]

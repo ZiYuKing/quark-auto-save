@@ -1155,7 +1155,17 @@
         stripFileExt(name) {
           const text = String(name || "").trim();
           if (!text) return "";
-          return text.replace(/\.[^\/\\.]+$/, "");
+          const match = text.match(/\.([^.\/\\]+)$/);
+          if (!match) return text;
+          const ext = `.${match[1].toLowerCase()}`;
+          const knownExts = [
+            '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.m4v', '.ts', '.mpg', '.mpeg', '.rmvb',
+            '.srt', '.ass', '.ssa', '.vtt'
+          ];
+          if (knownExts.includes(ext)) {
+            return text.slice(0, -ext.length);
+          }
+          return text;
         },
         openSavedDirEpisodePicker(index, task) {
           this.savedDirEpisodePicker.index = index;
