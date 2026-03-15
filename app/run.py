@@ -478,7 +478,7 @@ def build_saved_dirs():
     has_backref = bool(re.search(r"\\\d+", replace or ""))
 
     def render_replace_with_episode(repl, ep):
-        ep_text = str(ep)
+        ep_text = str(ep).zfill(2)
 
         def _sub(m):
             idx = int(m.group(1))
