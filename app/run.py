@@ -28,6 +28,7 @@ import base64
 import sys
 import os
 import re
+from natsort import natsorted
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -364,9 +365,14 @@ def get_share_detail():
         mr.set_taskname(task.get("taskname", ""))
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
-            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
+            saved_dirs = [
+                os.path.splitext(str(x).strip())[0]
+                for x in saved_dirs
+                if str(x).strip()
+            ]
         else:
             saved_dirs = []
+        use_saved_dirs = bool(saved_dirs)
 
         if saved_dirs:
             dir_file_list = [{"file_name": name, "dir": False} for name in saved_dirs]
@@ -400,7 +406,10 @@ def get_share_detail():
                 if file_name_saved := mr.is_exists(
                     file_name_re,
                     dir_filename_list,
-                    (task.get("ignore_extension") and not share_file["dir"]),
+                    (
+                        use_saved_dirs
+                        or (task.get("ignore_extension") and not share_file["dir"])
+                    ),
                 ):
                     share_file["file_name_saved"] = file_name_saved
                 else:
@@ -415,6 +424,69 @@ def get_share_detail():
         preview_regex(data)
 
     return jsonify({"success": True, "data": data})
+
+
+@app.route("/build_saved_dirs", methods=["POST"])
+def build_saved_dirs():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    task = request.json.get("task", {}) or {}
+    episodes = request.json.get("episodes", []) or []
+    magic_regex = request.json.get("magic_regex", {}) or {}
+
+    try:
+        episodes = sorted(
+            {int(x) for x in episodes if str(x).strip().isdigit() and int(x) > 0}
+        )
+    except Exception:
+        episodes = []
+    if not episodes:
+        return jsonify({"success": False, "message": "缺少有效集数"})
+
+    mr = MagicRename(magic_regex)
+    mr.set_taskname(task.get("taskname", ""))
+    pattern, replace = mr.magic_regex_conv(task.get("pattern", ""), task.get("replace", ""))
+    taskname = str(task.get("taskname", "")).strip()
+
+    def build_name_for_episode(ep):
+        ep2 = str(ep).zfill(2)
+        ep3 = str(ep).zfill(3)
+        candidates = [
+            f"第{ep}集.mp4",
+            f"{taskname}.第{ep}集.mp4" if taskname else f"第{ep}集.mp4",
+            f"{taskname}.S01E{ep2}.mp4" if taskname else f"S01E{ep2}.mp4",
+            f"{taskname}.S01E{ep3}.mp4" if taskname else f"S01E{ep3}.mp4",
+            f"S01E{ep2}.mp4",
+            f"S01E{ep3}.mp4",
+        ]
+        candidates = [x for x in candidates if x]
+
+        chosen = None
+        for c in candidates:
+            try:
+                matched = (not pattern) or re.search(pattern, c)
+            except Exception:
+                matched = True
+            if matched:
+                chosen = c
+                break
+        if not chosen:
+            chosen = candidates[0]
+
+        name = chosen
+        if replace:
+            try:
+                name = mr.sub(pattern, replace, chosen)
+            except Exception:
+                name = chosen
+        name = os.path.splitext(str(name).strip())[0]
+        return name or f"第{ep}集"
+
+    names = [build_name_for_episode(ep) for ep in episodes]
+    names = [x for x in names if x]
+    names = natsorted(list(dict.fromkeys(names)))
+    names.reverse()
+    return jsonify({"success": True, "data": {"names": names}})
 
 
 @app.route("/get_savepath_detail")

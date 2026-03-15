@@ -119,6 +119,23 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   margin-bottom: 0.5rem;
 }
 
+.saved-dir-episode-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  background-color: #fff;
+}
+
+.saved-dir-episode-btn {
+  width: 64px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /*
 * Sidebar
 */

@@ -312,6 +312,7 @@
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
+                      <span class="badge badge-warning ml-2" v-if="isTaskEdited(index)">已编辑</span>
                     </div>
                   </div>
                   <div class="col-auto">
@@ -403,7 +404,7 @@
                         <button type="button" class="btn btn-outline-secondary btn-sm" @click="loadSavedDirsFromSavepath(index, task)"><i class="bi bi-arrow-clockwise"></i> 读取已转存文件</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" @click="toggleSavedDirsSort(index, task)"><i class="bi bi-sort-numeric-down"></i> {{ getSavedDirsSortLabel(index) }}</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" @click="showMissingEpisodes(index, task)"><i class="bi bi-search"></i> 缺失剧集</button>
-                        <button type="button" class="btn btn-outline-primary btn-sm" @click="addSavedDir(task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @click="openSavedDirEpisodePicker(index, task)"><i class="bi bi-plus-circle"></i> 添加已转存项</button>
                         <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSavedDirs(task)"><i class="bi bi-x-circle"></i> 全部清除</button>
                       </div>
                     </div>
@@ -702,6 +703,48 @@
       </div>
     </div>
 
+    <!-- 模态框 已转存集数选择 -->
+    <div class="modal" tabindex="-1" id="savedDirEpisodeModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><b>添加已转存项</b></h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="small text-muted mb-2" v-if="savedDirEpisodePicker.taskname">任务：{{ savedDirEpisodePicker.taskname }}</div>
+            <div class="small text-muted mb-2">预设可选 {{ savedDirEpisodePicker.maxEpisode }} 集，点击 ... 可继续增加</div>
+            <div class="saved-dir-episode-list" ref="savedDirEpisodeList">
+              <button
+                type="button"
+                class="btn btn-sm m-1 saved-dir-episode-btn"
+                v-for="episode in savedDirEpisodePickerEpisodes"
+                :key="episode"
+                :class="isSavedDirEpisodeSelected(episode) ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="toggleSavedDirEpisode(episode)"
+              >
+                {{ episode }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm m-1 btn-outline-dark saved-dir-episode-btn"
+                @click="appendSavedDirEpisodes"
+              >
+                ...
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span class="text-muted mr-auto small">已选 {{ savedDirEpisodePicker.selectedEpisodes.length }} 集</span>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" @click="confirmAddSavedDirsByEpisodes">确认添加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast 提示 -->
     <div class="toast-container">
       <div v-for="toast in toasts" :key="toast.id" class="toast show shadow-sm" :class="toast.type" role="alert" aria-live="assertive" aria-atomic="true">
@@ -802,6 +845,13 @@
           lines: [],
           summary: ""
         },
+        savedDirEpisodePicker: {
+          index: null,
+          taskname: "",
+          maxEpisode: 50,
+          selectedEpisodes: []
+        },
+        taskEditedState: [],
       },
       filters: {
         ts2date: function (value) {
@@ -817,15 +867,22 @@
           return size + unitArr[index];
         }
       },
+      computed: {
+        savedDirEpisodePickerEpisodes() {
+          return Array.from({ length: this.savedDirEpisodePicker.maxEpisode }, (_, i) => i + 1);
+        }
+      },
       watch: {
         formData: {
           handler(newVal, oldVal) {
             this.configModified = true;
+            this.refreshTaskEditedState();
           },
           deep: true
         }
       },
       mounted() {
+        this.taskBaselineMap = new WeakMap();
         this.fetchData();
         this.checkNewVersion();
         $('[data-toggle="tooltip"]').tooltip();
@@ -843,6 +900,41 @@
       methods: {
         deepClone(obj) {
           return JSON.parse(JSON.stringify(obj));
+        },
+        serializeTaskForCompare(task) {
+          try {
+            const cloned = this.deepClone(task || {});
+            delete cloned.shareurl_ban;
+            return JSON.stringify(cloned);
+          } catch (e) {
+            return JSON.stringify(task || {});
+          }
+        },
+        resetTaskEditBaseline() {
+          if (!this.taskBaselineMap) {
+            this.taskBaselineMap = new WeakMap();
+          }
+          const tasklist = (this.formData && Array.isArray(this.formData.tasklist)) ? this.formData.tasklist : [];
+          tasklist.forEach(task => {
+            this.taskBaselineMap.set(task, this.serializeTaskForCompare(task));
+          });
+          this.taskEditedState = tasklist.map(() => false);
+        },
+        refreshTaskEditedState() {
+          const tasklist = (this.formData && Array.isArray(this.formData.tasklist)) ? this.formData.tasklist : [];
+          if (!this.taskBaselineMap) {
+            this.taskBaselineMap = new WeakMap();
+          }
+          this.taskEditedState = tasklist.map(task => {
+            const current = this.serializeTaskForCompare(task);
+            if (!this.taskBaselineMap.has(task)) {
+              return true;
+            }
+            return this.taskBaselineMap.get(task) !== current;
+          });
+        },
+        isTaskEdited(index) {
+          return !!this.taskEditedState[index];
         },
         changeTab(tab) {
           this.activeTab = tab;
@@ -925,6 +1017,7 @@
               this.formData = config_data;
               setTimeout(() => {
                 this.configModified = false;
+                this.resetTaskEditBaseline();
               }, 100);
             })
             .catch(error => {
@@ -954,6 +1047,7 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.resetTaskEditBaseline();
                 this.showToast(response.data.message, 'success');
               } else {
                 this.showToast(response.data.message, 'error');
@@ -1051,6 +1145,85 @@
           }
           task.saved_dirs.push('');
         },
+        stripFileExt(name) {
+          const text = String(name || "").trim();
+          if (!text) return "";
+          return text.replace(/\.[^\/\\.]+$/, "");
+        },
+        openSavedDirEpisodePicker(index, task) {
+          this.savedDirEpisodePicker.index = index;
+          this.savedDirEpisodePicker.taskname = task.taskname || `#${index + 1}`;
+          this.savedDirEpisodePicker.maxEpisode = 50;
+          this.savedDirEpisodePicker.selectedEpisodes = [];
+          $('#savedDirEpisodeModal').modal('show');
+          this.$nextTick(() => {
+            if (this.$refs.savedDirEpisodeList) {
+              this.$refs.savedDirEpisodeList.scrollTop = 0;
+            }
+          });
+        },
+        appendSavedDirEpisodes() {
+          this.savedDirEpisodePicker.maxEpisode += 50;
+        },
+        isSavedDirEpisodeSelected(episode) {
+          return this.savedDirEpisodePicker.selectedEpisodes.includes(episode);
+        },
+        toggleSavedDirEpisode(episode) {
+          const selected = this.savedDirEpisodePicker.selectedEpisodes;
+          const idx = selected.indexOf(episode);
+          if (idx >= 0) {
+            selected.splice(idx, 1);
+          } else {
+            selected.push(episode);
+            selected.sort((a, b) => a - b);
+          }
+        },
+        confirmAddSavedDirsByEpisodes() {
+          const index = this.savedDirEpisodePicker.index;
+          if (index === null || index >= this.formData.tasklist.length) {
+            return;
+          }
+          const task = this.formData.tasklist[index];
+          const episodes = this.savedDirEpisodePicker.selectedEpisodes.slice();
+          if (!episodes.length) {
+            this.showToast('请先选择集数', 'warning');
+            return;
+          }
+          this.modalLoading = true;
+          axios.post('/build_saved_dirs', {
+            task: task,
+            episodes: episodes,
+            magic_regex: this.formData.magic_regex
+          }).then(response => {
+            if (!response.data.success) {
+              this.showToast(response.data.message || '生成已转存项失败', 'error');
+              return;
+            }
+            const names = (((response || {}).data || {}).data || {}).names || [];
+            if (!Array.isArray(task.saved_dirs)) {
+              this.$set(task, 'saved_dirs', []);
+            }
+            const merged = task.saved_dirs
+              .map(name => this.stripFileExt(name))
+              .filter(Boolean);
+            names.forEach(name => {
+              const noExt = this.stripFileExt(name);
+              if (noExt && !merged.includes(noExt)) {
+                merged.push(noExt);
+              }
+            });
+            const order = this.getSavedDirsSortOrder(index);
+            this.$set(task, 'saved_dirs', merged);
+            this.sortSavedDirsInPlace(task, order);
+            this.showToast(`已添加 ${names.length} 项`, 'success');
+            $('#savedDirEpisodeModal').modal('hide');
+          }).catch(error => {
+            console.error('Error /build_saved_dirs:', error);
+            this.showToast('生成已转存项失败', 'error');
+          }).finally(() => {
+            this.modalLoading = false;
+          });
+        },
         getSavedDirsSortOrder(index) {
           return this.savedDirsSortOrder[index] || "desc";
         },
@@ -1066,7 +1239,7 @@
             return;
           }
           task.saved_dirs = task.saved_dirs
-            .map(name => String(name || "").trim())
+            .map(name => this.stripFileExt(name))
             .filter(name => !!name)
             .sort((a, b) => this.naturalCompare(a, b));
           if (order === "desc") {
@@ -1090,7 +1263,7 @@
             const list = (((response || {}).data || {}).data || {}).list || [];
             const names = list
               .filter(item => item && !item.dir && item.file_name)
-              .map(item => String(item.file_name).trim())
+              .map(item => this.stripFileExt(item.file_name))
               .filter(name => !!name);
             names.sort((a, b) => this.naturalCompare(a, b)).reverse();
             this.$set(task, 'saved_dirs', names);

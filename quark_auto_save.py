@@ -923,12 +923,16 @@ class Quark:
             return 0, []
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
-            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
+            saved_dirs = [
+                os.path.splitext(str(x).strip())[0]
+                for x in saved_dirs
+                if str(x).strip()
+            ]
         else:
             saved_dirs = []
         added_names = []
         for name in file_names:
-            name = str(name).strip()
+            name = os.path.splitext(str(name).strip())[0]
             if name and name not in saved_dirs:
                 saved_dirs.append(name)
                 added_names.append(name)
@@ -971,9 +975,14 @@ class Quark:
         to_pdir_fid = self.savepath_fid[savepath]
         saved_dirs = task.get("saved_dirs", [])
         if isinstance(saved_dirs, list):
-            saved_dirs = [str(x).strip() for x in saved_dirs if str(x).strip()]
+            saved_dirs = [
+                os.path.splitext(str(x).strip())[0]
+                for x in saved_dirs
+                if str(x).strip()
+            ]
         else:
             saved_dirs = []
+        use_saved_dirs = bool(saved_dirs)
 
         if saved_dirs:
             dir_file_list = [{"file_name": name, "dir": False} for name in saved_dirs]
@@ -1017,7 +1026,10 @@ class Quark:
                 if not mr.is_exists(
                     share_file["file_name"],
                     dir_filename_list,
-                    (task.get("ignore_extension") and not share_file["dir"]),
+                    (
+                        use_saved_dirs
+                        or (task.get("ignore_extension") and not share_file["dir"])
+                    ),
                 ):
                     # 如果开启了 skip_dir 选项且当前是文件夹，则跳过
                     if share_file["dir"] and task.get("skip_dir") and not task.get("update_subdir"):
@@ -1033,7 +1045,7 @@ class Quark:
                         if not mr.is_exists(
                             file_name_re,
                             dir_filename_list,
-                            task.get("ignore_extension"),
+                            (use_saved_dirs or task.get("ignore_extension")),
                         ):
                             share_file["file_name_re"] = file_name_re
                             need_save_list.append(share_file)
