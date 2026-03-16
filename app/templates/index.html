@@ -369,13 +369,13 @@
                   </div>
                   <div class="col-auto">
                     <button type="button" class="btn btn-outline-primary btn-sm" @click="copyTaskToClipboard(index)" title="复制任务参数到粘贴板"><i class=" bi bi-clipboard-check-fill"></i></button>
-                    <button class="btn btn-warning btn-sm" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
+                    <button class="btn btn-warning btn-sm" v-if="hasInvalidShareurl(task)" title="分享为空，文件已被分享者删除" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
                     <button type="button" class="btn btn-outline-primary btn-sm" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
                     <button type="button" class="btn btn-outline-danger btn-sm" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
-                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+                  <div class="alert alert-warning" role="alert" v-if="hasInvalidShareurl(task)">分享为空，文件已被分享者删除</div>
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">任务名称</label>
                     <div class="col-sm-10">
@@ -411,12 +411,16 @@
                       <div v-for="(shareurl, urlIndex) in task.shareurls" :key="urlIndex" class="input-group mb-2">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurls[urlIndex]" placeholder="必填" @blur="changeShareurl(task, urlIndex)">
                         <div class="input-group-append">
-                          <button type="button" class="btn btn-outline-secondary" v-if="task.shareurls[urlIndex]" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index, urlIndex)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" v-if="task.shareurls[urlIndex] && !getShareurlBan(task, urlIndex)" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index, urlIndex)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-warning" v-if="task.shareurls[urlIndex] && getShareurlBan(task, urlIndex)" :title="getShareurlBan(task, urlIndex)" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
                           <div class="input-group-text" v-if="task.shareurls[urlIndex]">
                             <a target="_blank" :href="task.shareurls[urlIndex]"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
                           <button type="button" class="btn btn-outline-danger" v-if="task.shareurls.length > 1" @click="removeShareurl(task, urlIndex)" title="删除链接"><i class="bi bi-trash"></i></button>
                         </div>
+                      </div>
+                      <div class="small text-warning mb-2" v-if="getShareurlBan(task, urlIndex)">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 分享为空，文件已被分享者删除
                       </div>
                       <button type="button" class="btn btn-outline-primary btn-sm" @click="addShareurl(task)" title="添加更多分享链接"><i class="bi bi-plus-circle"></i> 添加链接</button>
                     </div>
@@ -1062,6 +1066,7 @@
           try {
             const cloned = this.deepClone(task || {});
             delete cloned.shareurl_ban;
+            delete cloned.shareurl_ban_list;
             return JSON.stringify(cloned);
           } catch (e) {
             return JSON.stringify(task || {});
@@ -1138,6 +1143,18 @@
                 } else if (!task.shareurls) {
                   task.shareurls = [''];
                 }
+                if (!Array.isArray(task.shareurl_ban_list)) {
+                  task.shareurl_ban_list = [];
+                }
+                while (task.shareurl_ban_list.length < task.shareurls.length) {
+                  task.shareurl_ban_list.push("");
+                }
+                if (task.shareurl_ban_list.length > task.shareurls.length) {
+                  task.shareurl_ban_list = task.shareurl_ban_list.slice(0, task.shareurls.length);
+                }
+                task.shareurl_ban = task.shareurl_ban_list.some(msg => !!(msg && String(msg).trim()))
+                  ? "分享为空，文件已被分享者删除"
+                  : undefined;
                 return task;
               });
               // 获取所有任务父目录
@@ -1292,16 +1309,53 @@
           if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
+        ensureShareurlBanList(task) {
+          if (!task.shareurls) {
+            this.$set(task, 'shareurls', ['']);
+          }
+          if (!Array.isArray(task.shareurl_ban_list)) {
+            this.$set(task, 'shareurl_ban_list', []);
+          }
+          while (task.shareurl_ban_list.length < task.shareurls.length) {
+            task.shareurl_ban_list.push("");
+          }
+          if (task.shareurl_ban_list.length > task.shareurls.length) {
+            task.shareurl_ban_list = task.shareurl_ban_list.slice(0, task.shareurls.length);
+          }
+        },
+        getShareurlBan(task, urlIndex) {
+          this.ensureShareurlBanList(task);
+          return task.shareurl_ban_list[urlIndex] || "";
+        },
+        setShareurlBan(task, urlIndex, message) {
+          this.ensureShareurlBanList(task);
+          this.$set(task.shareurl_ban_list, urlIndex, message || "");
+          this.syncTaskShareurlBan(task);
+        },
+        syncTaskShareurlBan(task) {
+          this.ensureShareurlBanList(task);
+          const hasInvalid = task.shareurl_ban_list.some(msg => !!(msg && String(msg).trim()));
+          this.$set(task, "shareurl_ban", hasInvalid ? "分享为空，文件已被分享者删除" : undefined);
+        },
+        hasInvalidShareurl(task) {
+          this.ensureShareurlBanList(task);
+          return task.shareurl_ban_list.some(msg => !!(msg && String(msg).trim()));
+        },
         addShareurl(task) {
           if (!task.shareurls) {
             this.$set(task, 'shareurls', ['']);
           } else {
             task.shareurls.push('');
           }
+          this.ensureShareurlBanList(task);
         },
         removeShareurl(task, urlIndex) {
           if (task.shareurls.length > 1) {
             task.shareurls.splice(urlIndex, 1);
+            if (Array.isArray(task.shareurl_ban_list)) {
+              task.shareurl_ban_list.splice(urlIndex, 1);
+            }
+            this.syncTaskShareurlBan(task);
           }
         },
         addSavedDir(task) {
@@ -1667,9 +1721,11 @@
           }
         },
         changeShareurl(task, urlIndex) {
-          if (!task.shareurls || !task.shareurls[urlIndex])
+          if (!task.shareurls || !task.shareurls[urlIndex]) {
+            this.setShareurlBan(task, urlIndex, "");
             return;
-          this.$set(task, "shareurl_ban", undefined);
+          }
+          this.setShareurlBan(task, urlIndex, "");
           const shareurl = task.shareurls[urlIndex];
           // 从 URL 中提取任务名
           try {
@@ -1695,14 +1751,15 @@
                   return;
                 }
               }
-              this.$set(task, "shareurl_ban", share_detail.error);
+              this.setShareurlBan(task, urlIndex, "分享为空，文件已被分享者删除");
             } else {
               task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
               task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
-              this.$set(task, "shareurl_ban", undefined);
+              this.setShareurlBan(task, urlIndex, "");
             }
           }).catch(error => {
             console.error('Error get_share_detail:', error);
+            this.setShareurlBan(task, urlIndex, "分享为空，文件已被分享者删除");
           });
         },
         searchResources() {
@@ -2146,7 +2203,7 @@
           if (this.fileSelect.selectShare) {
             const task = this.formData.tasklist[this.fileSelect.index];
             const urlIndex = this.fileSelect.urlIndex || 0;
-            task.shareurl_ban = undefined;
+            this.setShareurlBan(task, urlIndex, "");
             // 确保 shareurls 数组存在
             if (!task.shareurls) {
               this.$set(task, 'shareurls', ['']);
