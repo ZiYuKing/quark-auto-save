@@ -408,16 +408,26 @@
                   <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
-                      <div v-for="(shareurl, urlIndex) in task.shareurls" :key="urlIndex" class="input-group mb-2">
-                        <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurls[urlIndex]" placeholder="必填" @blur="changeShareurl(task, urlIndex)">
-                        <div class="input-group-append">
-                          <button type="button" class="btn btn-outline-secondary" v-if="task.shareurls[urlIndex] && !getShareurlBan(task, urlIndex)" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index, urlIndex)" title="选择文件夹"><i class="bi bi-folder"></i></button>
-                          <button type="button" class="btn btn-warning" v-if="task.shareurls[urlIndex] && getShareurlBan(task, urlIndex)" :title="getShareurlBan(task, urlIndex)" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
-                          <div class="input-group-text" v-if="task.shareurls[urlIndex]">
-                            <a target="_blank" :href="task.shareurls[urlIndex]"><i class="bi bi-box-arrow-up-right"></i></a>
+                      <div class="shareurl-box" :class="{'multiple': task.shareurls.length > 1}">
+                        <div v-for="(shareurl, urlIndex) in task.shareurls" :key="urlIndex" class="shareurl-item" :class="{'dragging': shareurlDrag.taskIndex === index && shareurlDrag.fromIndex === urlIndex}" @dragover.prevent="onShareurlDragOver(index, urlIndex, $event)" @drop.prevent="onShareurlDrop(task, index, urlIndex, $event)">
+                          <span class="shareurl-drag-handle" v-if="task.shareurls.length > 1" draggable="true" @dragstart="onShareurlDragStart(index, urlIndex, $event)" @dragend="onShareurlDragEnd" title="拖拽排序">
+                            <i class="bi bi-list"></i>
+                          </span>
+                          <div class="input-group">
+                            <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurls[urlIndex]" placeholder="必填" @blur="changeShareurl(task, urlIndex)">
+                            <div class="input-group-append">
+                              <button type="button" class="btn btn-outline-secondary" v-if="task.shareurls[urlIndex] && !getShareurlBan(task, urlIndex)" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index, urlIndex)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                              <button type="button" class="btn btn-warning" v-if="task.shareurls[urlIndex] && getShareurlBan(task, urlIndex)" :title="getShareurlBan(task, urlIndex)" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
+                              <div class="input-group-text" v-if="task.shareurls[urlIndex]">
+                                <a target="_blank" :href="task.shareurls[urlIndex]"><i class="bi bi-box-arrow-up-right"></i></a>
+                              </div>
+                              <button type="button" class="btn btn-outline-danger" v-if="task.shareurls.length > 1" @click="removeShareurl(task, urlIndex)" title="删除链接"><i class="bi bi-trash"></i></button>
+                            </div>
                           </div>
-                          <button type="button" class="btn btn-outline-danger" v-if="task.shareurls.length > 1" @click="removeShareurl(task, urlIndex)" title="删除链接"><i class="bi bi-trash"></i></button>
                         </div>
+                      </div>
+                      <div class="shareurl-drop-tail" v-if="task.shareurls.length > 1" @dragover.prevent="onShareurlDragOver(index, task.shareurls.length, $event)" @drop.prevent="onShareurlDrop(task, index, task.shareurls.length, $event)">
+                        拖到这里可放到末尾
                       </div>
                       <div class="small text-warning mb-2" v-if="hasInvalidShareurl(task)">
                         <i class="bi bi-exclamation-triangle-fill"></i> 分享为空，文件已被分享者删除
@@ -997,6 +1007,10 @@
           sortOrder: "desc"
         },
         savedDirDrag: {
+          taskIndex: null,
+          fromIndex: null
+        },
+        shareurlDrag: {
           taskIndex: null,
           fromIndex: null
         },
@@ -1672,6 +1686,45 @@
         onSavedDirDragEnd() {
           this.savedDirDrag.taskIndex = null;
           this.savedDirDrag.fromIndex = null;
+        },
+        onShareurlDragStart(taskIndex, fromIndex, event) {
+          this.shareurlDrag.taskIndex = taskIndex;
+          this.shareurlDrag.fromIndex = fromIndex;
+          if (event && event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", `${taskIndex}:${fromIndex}`);
+          }
+        },
+        onShareurlDragOver(taskIndex, toIndex, event) {
+          if (this.shareurlDrag.taskIndex !== taskIndex) {
+            return;
+          }
+          if (event && event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+          }
+        },
+        onShareurlDrop(task, taskIndex, toIndex, event) {
+          if (this.shareurlDrag.taskIndex !== taskIndex || !Array.isArray(task.shareurls)) {
+            this.onShareurlDragEnd();
+            return;
+          }
+          const fromIndex = this.shareurlDrag.fromIndex;
+          if (fromIndex === null || fromIndex === toIndex || fromIndex < 0 || fromIndex >= task.shareurls.length) {
+            this.onShareurlDragEnd();
+            return;
+          }
+          const movedUrl = task.shareurls.splice(fromIndex, 1)[0];
+          const targetIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+          task.shareurls.splice(targetIndex, 0, movedUrl);
+          if (Array.isArray(task.shareurl_ban_list) && task.shareurl_ban_list.length) {
+            const movedBan = task.shareurl_ban_list.splice(fromIndex, 1)[0];
+            task.shareurl_ban_list.splice(targetIndex, 0, movedBan);
+          }
+          this.onShareurlDragEnd();
+        },
+        onShareurlDragEnd() {
+          this.shareurlDrag.taskIndex = null;
+          this.shareurlDrag.fromIndex = null;
         },
         ensureAlistTransferConfig(task) {
           if (!task.addition || typeof task.addition !== "object") {

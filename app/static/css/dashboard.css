@@ -136,6 +136,59 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   justify-content: center;
 }
 
+.shareurl-box {
+  margin-bottom: 0.5rem;
+}
+
+.shareurl-box.multiple {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  background-color: #fff;
+}
+
+.shareurl-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shareurl-item + .shareurl-item {
+  margin-top: 0.5rem;
+}
+
+.shareurl-item.dragging {
+  opacity: 0.6;
+}
+
+.shareurl-drag-handle {
+  cursor: grab;
+  color: #6c757d;
+  user-select: none;
+  padding: 0.35rem 0.45rem;
+  line-height: 1;
+}
+
+.shareurl-drag-handle:active {
+  cursor: grabbing;
+}
+
+.shareurl-item .input-group {
+  flex: 1;
+}
+
+.shareurl-drop-tail {
+  border: 1px dashed #ced4da;
+  border-radius: 0.25rem;
+  color: #6c757d;
+  font-size: 12px;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
 /*
 * Sidebar
 */
