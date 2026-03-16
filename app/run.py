@@ -18,6 +18,7 @@ from apscheduler.triggers.cron import CronTrigger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sdk.cloudsaver import CloudSaver
 from sdk.pansou import PanSou
+from sdk.gying import Gying
 from datetime import timedelta
 import subprocess
 import requests
@@ -363,6 +364,7 @@ def resource_search():
 
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
+    gy_data = config_data.get("source", {}).get("gying", {})
     cs_debug_stats = {"raw_count": 0, "quark_filtered_count": 0}
 
     def cs_search():
@@ -400,12 +402,35 @@ def resource_search():
             return ps.search(query, True)
         return []
 
+    def gy_search():
+        has_url = bool(gy_data.get("url"))
+        has_login = bool(gy_data.get("username") and gy_data.get("password"))
+        has_cookie = bool(gy_data.get("cookie"))
+        if has_url and (has_login or has_cookie):
+            gy = Gying(
+                gy_data.get("url", ""),
+                gy_data.get("username", ""),
+                gy_data.get("password", ""),
+                gy_data.get("cookie", ""),
+            )
+            return gy.search(query)
+        return []
+
     try:
         search_results = []
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            features = [executor.submit(cs_search), executor.submit(ps_search)]
+        gy_results = []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            features = {
+                executor.submit(cs_search): "cs",
+                executor.submit(ps_search): "ps",
+                executor.submit(gy_search): "gy",
+            }
             for future in as_completed(features):
-                search_results.extend(future.result())
+                result = future.result()
+                if features[future] == "gy":
+                    gy_results.extend(result)
+                else:
+                    search_results.extend(result)
 
         search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
         results = []
@@ -418,14 +443,44 @@ def resource_search():
         cs_in_dedup_count = sum(
             1 for item in results if item.get("source") == "CloudSaver"
         )
-        print(
-            "CloudSaver原始条数 -> quark过滤后条数 -> 聚合去重后条数: "
-            f"{cs_debug_stats['raw_count']} -> {cs_debug_stats['quark_filtered_count']} -> {cs_in_dedup_count} "
-            f"(总去重后条数: {len(results)})"
-        )
         sys.stdout.flush()
-        return jsonify({"success": True, "data": results})
+        # 向后兼容前端：data 仍返回数组，额外携带 gying 结果供后续升级前端使用
+        return jsonify({"success": True, "data": results, "gying": gy_results})
     except Exception as e:
+        return jsonify({"success": False, "message": str(e), "data": [], "gying": []})
+
+
+@app.route("/gying_second_layer", methods=["POST"])
+def gying_second_layer():
+    try:
+        payload = request.get_json(silent=True) or {}
+        if not payload and request.form:
+            payload = request.form.to_dict()
+        shareurl = str(payload.get("shareurl", "")).strip()
+        if not shareurl:
+            return jsonify({"success": False, "message": "shareurl 不能为空", "data": []})
+
+        config_path = CONFIG_PATH
+        if not os.path.isabs(config_path):
+            config_path = os.path.abspath(config_path)
+        if not os.path.exists(config_path):
+            config_path = os.path.join(parent_dir, "config", "quark_config.json")
+
+        config_data = Config.read_json(config_path)
+        gy_data = config_data.get("source", {}).get("gying", {})
+        if not gy_data.get("url"):
+            return jsonify({"success": False, "message": "GYING URL 未配置", "data": []})
+
+        gy = Gying(
+            gy_data.get("url", ""),
+            gy_data.get("username", ""),
+            gy_data.get("password", ""),
+            gy_data.get("cookie", ""),
+        )
+        data = gy.second_layer(shareurl)
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        print(f"[GYING] /gying_second_layer 异常: {e}")
         return jsonify({"success": False, "message": str(e), "data": []})
 
 
@@ -856,6 +911,22 @@ def init():
     Config.breaking_change_update(config_data)
     if not config_data.get("magic_regex"):
         config_data["magic_regex"] = MagicRename().magic_regex
+    if not config_data.get("source"):
+        config_data["source"] = {}
+    config_data["source"].setdefault("cloudsaver", {})
+    config_data["source"]["cloudsaver"].setdefault("server", "")
+    config_data["source"]["cloudsaver"].setdefault("username", "")
+    config_data["source"]["cloudsaver"].setdefault("password", "")
+    config_data["source"]["cloudsaver"].setdefault("token", "")
+    config_data["source"].setdefault("pansou", {})
+    config_data["source"]["pansou"].setdefault("server", "")
+    config_data["source"].setdefault("net", {})
+    config_data["source"]["net"].setdefault("enable", True)
+    config_data["source"].setdefault("gying", {})
+    config_data["source"]["gying"].setdefault("url", "")
+    config_data["source"]["gying"].setdefault("username", "")
+    config_data["source"]["gying"].setdefault("password", "")
+    config_data["source"]["gying"].setdefault("cookie", "")
 
     # 默认管理账号
     config_data["webui"] = {
