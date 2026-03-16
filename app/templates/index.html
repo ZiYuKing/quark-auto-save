@@ -1793,6 +1793,22 @@
             this.resourceSearch.loading = false;
           });
         },
+        autoSelectTargetTaskByKeyword() {
+          const tasklist = Array.isArray(this.formData.tasklist) ? this.formData.tasklist : [];
+          if (!tasklist.length) {
+            return;
+          }
+          const keyword = String(this.resourceSearch.keyword || "").trim().toLowerCase();
+          if (!keyword) {
+            this.resourceSearch.targetTaskIndex = 0;
+            return;
+          }
+          const matchedIndex = tasklist.findIndex(task => {
+            const taskname = String((task && task.taskname) || "").toLowerCase();
+            return taskname.includes(keyword);
+          });
+          this.resourceSearch.targetTaskIndex = matchedIndex >= 0 ? matchedIndex : 0;
+        },
         openResourceSearchResult(item) {
           if (!item || !item.shareurl) {
             return;
@@ -1815,6 +1831,7 @@
           this.fileSelect.stoken = "";
           this.fileSelect.index = this.formData.tasklist.length;
           this.fileSelect.urlIndex = 0;
+          this.autoSelectTargetTaskByKeyword();
           $('#resourceSearchModal').modal('hide');
           $('#fileSelectModal').modal('show');
           this.getShareDetail();
@@ -1867,9 +1884,21 @@
           if (!Array.isArray(task.shareurls)) {
             this.$set(task, 'shareurls', []);
           }
-          if (!task.shareurls.includes(shareurl)) {
-            task.shareurls.push(shareurl);
+          const normalizeForCompare = (url) => {
+            let val = String(url || "").trim();
+            if (!val) return "";
+            // 统一协议、去尾斜杠，避免同链接不同写法重复
+            val = val.replace(/^http:\/\//i, "https://");
+            val = val.replace(/\/+$/, "");
+            return val;
+          };
+          const targetNorm = normalizeForCompare(shareurl);
+          const exists = task.shareurls.some(existing => normalizeForCompare(existing) === targetNorm);
+          if (exists) {
+            this.showToast('该任务已存在此分享链接', 'warning');
+            return;
           }
+          task.shareurls.push(shareurl);
           axios.post('/update', this.formData).then(response => {
             if (response.data.success) {
               this.configModified = false;
