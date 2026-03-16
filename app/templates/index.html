@@ -419,7 +419,7 @@
                           <button type="button" class="btn btn-outline-danger" v-if="task.shareurls.length > 1" @click="removeShareurl(task, urlIndex)" title="删除链接"><i class="bi bi-trash"></i></button>
                         </div>
                       </div>
-                      <div class="small text-warning mb-2" v-if="getShareurlBan(task, urlIndex)">
+                      <div class="small text-warning mb-2" v-if="hasInvalidShareurl(task)">
                         <i class="bi bi-exclamation-triangle-fill"></i> 分享为空，文件已被分享者删除
                       </div>
                       <button type="button" class="btn btn-outline-primary btn-sm" @click="addShareurl(task)" title="添加更多分享链接"><i class="bi bi-plus-circle"></i> 添加链接</button>
