@@ -353,6 +353,82 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
+@app.route("/resource_search")
+def resource_search():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    query = request.args.get("q", "").strip().lower()
+    if len(query) < 2:
+        return jsonify({"success": True, "data": []})
+
+    cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    ps_data = config_data.get("source", {}).get("pansou", {})
+    cs_debug_stats = {"raw_count": 0, "quark_filtered_count": 0}
+
+    def cs_search():
+        if (
+            cs_data.get("server")
+            and cs_data.get("username")
+            and cs_data.get("password")
+        ):
+            cs = CloudSaver(cs_data.get("server"))
+            cs.set_auth(
+                cs_data.get("username", ""),
+                cs_data.get("password", ""),
+                cs_data.get("token", ""),
+            )
+            search = cs.auto_login_search(query)
+            if search.get("success"):
+                if search.get("new_token"):
+                    cs_data["token"] = search.get("new_token")
+                    Config.write_json(CONFIG_PATH, config_data)
+                raw_data = search.get("data") or []
+                raw_count = sum(
+                    len(channel.get("list", []))
+                    for channel in raw_data
+                    if isinstance(channel, dict)
+                )
+                clean_results = cs.clean_search_results(raw_data)
+                cs_debug_stats["raw_count"] = raw_count
+                cs_debug_stats["quark_filtered_count"] = len(clean_results)
+                return clean_results
+        return []
+
+    def ps_search():
+        if ps_data.get("server"):
+            ps = PanSou(ps_data.get("server"))
+            return ps.search(query, True)
+        return []
+
+    try:
+        search_results = []
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            features = [executor.submit(cs_search), executor.submit(ps_search)]
+            for future in as_completed(features):
+                search_results.extend(future.result())
+
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
+        results = []
+        link_array = []
+        for item in search_results:
+            url = item.get("shareurl", "")
+            if url and url not in link_array:
+                link_array.append(url)
+                results.append(item)
+        cs_in_dedup_count = sum(
+            1 for item in results if item.get("source") == "CloudSaver"
+        )
+        print(
+            "CloudSaver原始条数 -> quark过滤后条数 -> 聚合去重后条数: "
+            f"{cs_debug_stats['raw_count']} -> {cs_debug_stats['quark_filtered_count']} -> {cs_in_dedup_count} "
+            f"(总去重后条数: {len(results)})"
+        )
+        sys.stdout.flush()
+        return jsonify({"success": True, "data": results})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e), "data": []})
+
+
 @app.route("/get_share_detail", methods=["POST"])
 def get_share_detail():
     if not is_login():

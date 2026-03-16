@@ -931,6 +931,7 @@ class Quark:
         if has_updates:
             final_saved_names = self.do_rename(merged_tree)
             added_count, added_names = self._update_task_saved_dirs(task, final_saved_names)
+            task["update_time"] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
             if added_count > 0:
                 display_names = "，".join(added_names[:10])
                 if added_count > 10:
@@ -1430,6 +1431,9 @@ def merge_runtime_saved_dirs_to_config(runtime_tasklist, config_tasklist):
             if name not in current_saved_dirs:
                 current_saved_dirs.append(name)
         matched_task["saved_dirs"] = current_saved_dirs
+        runtime_update_time = str(runtime_task.get("update_time", "")).strip()
+        if runtime_update_time:
+            matched_task["update_time"] = runtime_update_time
 
 
 def main():

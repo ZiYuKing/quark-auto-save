@@ -279,6 +279,24 @@
               </div>
             </div>
             <hr>
+            <div class="row mb-3">
+              <div class="col-12">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">资源搜索</span>
+                  </div>
+                  <input type="text" class="form-control" v-model="resourceSearch.keyword" placeholder="输入资源名称，聚合 CloudSaver + PanSou" @keyup.enter="searchResources()">
+                  <div class="input-group-append">
+                    <button class="btn btn-primary" type="button" @click="searchResources()">
+                      <i v-if="resourceSearch.loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                      <i v-else class="bi bi-search"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @click="clearData('resourceSearchKeyword')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <hr>
             <div class="row">
               <div class="col-lg-6 col-md-12">
                 <div class="row">
@@ -313,6 +331,7 @@
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
                       <span class="badge badge-warning ml-2" v-if="isTaskEdited(index)">已编辑</span>
+                      <span class="text-muted ml-2" v-if="task.update_time">更新时间：{{ task.update_time }}</span>
                     </div>
                   </div>
                   <div class="col-auto">
@@ -674,8 +693,42 @@
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
-            <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.addToTaskMode || !fileSelect.selectShare" @click="selectCurrentFolder()">当前文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹
+              <span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span>
+            </button>
+            <template v-if="fileSelect.addToTaskMode && fileSelect.selectShare">
+              <select class="form-control form-control-sm ml-2" style="max-width: 260px;" v-model.number="resourceSearch.targetTaskIndex">
+                <option v-for="(task, tIndex) in formData.tasklist" :key="`task_opt_${tIndex}`" :value="tIndex" v-html="`#${tIndex+1} ${task.taskname}`"></option>
+              </select>
+              <button type="button" class="btn btn-success btn-sm" @click="addCurrentShareToTask()">添加至任务</button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框 资源搜索结果 -->
+    <div class="modal" tabindex="-1" id="resourceSearchModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><b>资源搜索结果</b></h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body small">
+            <div class="text-muted mb-2" v-if="!resourceSearch.results.length">没有搜索到结果</div>
+            <div v-for="(item, idx) in resourceSearch.results" :key="idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openResourceSearchResult(item)">
+              <div><b>{{ item.taskname }}</b></div>
+              <div class="text-muted">
+                <span class="badge bg-transparent border border-success text-success">{{ item.source || "网络公开" }}</span>
+                <span class="badge bg-transparent border border-info text-info" v-if="item.channel">{{ item.channel }}</span>
+                <span class="badge bg-transparent border border-dark text-dark" v-if="item.datetime">{{ item.datetime }}</span>
+              </div>
+              <div class="text-truncate"><a :href="item.shareurl" target="_blank" @click.stop>{{ item.shareurl }}</a></div>
+            </div>
           </div>
         </div>
       </div>
@@ -826,6 +879,12 @@
         },
         activeTab: 'tasklist',
         configModified: false,
+        resourceSearch: {
+          keyword: "",
+          loading: false,
+          results: [],
+          targetTaskIndex: 0
+        },
         fileSelect: {
           index: null,
           targetField: "savepath",
@@ -839,6 +898,7 @@
           selectShare: true,
           switchShare: false,
           previewRegex: false,
+          addToTaskMode: false,
           sortBy: "updated_at",
           sortOrder: "desc"
         },
@@ -1547,7 +1607,91 @@
             console.error('Error get_share_detail:', error);
           });
         },
+        searchResources() {
+          const keyword = (this.resourceSearch.keyword || "").trim();
+          if (keyword.length < 2) {
+            this.showToast('请输入至少2个字符', 'warning');
+            return;
+          }
+          this.resourceSearch.loading = true;
+          axios.get('/resource_search', {
+            params: { q: keyword }
+          }).then(response => {
+            if (!response.data.success) {
+              this.showToast(response.data.message || '搜索失败', 'error');
+              return;
+            }
+            this.resourceSearch.results = response.data.data || [];
+            if (this.formData.tasklist.length > 0) {
+              this.resourceSearch.targetTaskIndex = 0;
+            }
+            $('#resourceSearchModal').modal('show');
+          }).catch(error => {
+            console.error('Error /resource_search:', error);
+            this.showToast('搜索失败', 'error');
+          }).finally(() => {
+            this.resourceSearch.loading = false;
+          });
+        },
+        openResourceSearchResult(item) {
+          if (!item || !item.shareurl) {
+            return;
+          }
+          this.fileSelect.addToTaskMode = true;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.selectShare = true;
+          this.fileSelect.switchShare = false;
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.error = undefined;
+          this.fileSelect.share = item;
+          this.fileSelect.shareurl = item.shareurl;
+          this.fileSelect.stoken = "";
+          this.fileSelect.index = this.formData.tasklist.length;
+          this.fileSelect.urlIndex = 0;
+          $('#resourceSearchModal').modal('hide');
+          $('#fileSelectModal').modal('show');
+          this.getShareDetail();
+        },
+        addCurrentShareToTask() {
+          const taskIndex = Number(this.resourceSearch.targetTaskIndex);
+          if (!Number.isInteger(taskIndex) || taskIndex < 0 || taskIndex >= this.formData.tasklist.length) {
+            this.showToast('请选择目标任务', 'warning');
+            return;
+          }
+          const shareurl = (this.fileSelect.shareurl || "").trim();
+          if (!shareurl) {
+            this.showToast('当前链接为空', 'warning');
+            return;
+          }
+          const task = this.formData.tasklist[taskIndex];
+          if (!Array.isArray(task.shareurls)) {
+            this.$set(task, 'shareurls', []);
+          }
+          if (!task.shareurls.includes(shareurl)) {
+            task.shareurls.push(shareurl);
+          }
+          axios.post('/update', this.formData).then(response => {
+            if (response.data.success) {
+              this.configModified = false;
+              this.resetTaskEditBaseline();
+              $('#fileSelectModal').modal('hide');
+              this.fetchData();
+              this.showToast('已添加到任务并刷新', 'success');
+            } else {
+              this.showToast(response.data.message || '添加失败', 'error');
+            }
+          }).catch(error => {
+            console.error('Error addCurrentShareToTask:', error);
+            this.showToast('添加失败', 'error');
+          });
+        },
         clearData(target) {
+          if (target === 'resourceSearchKeyword') {
+            this.resourceSearch.keyword = "";
+            return;
+          }
           this[target] = "";
         },
         async runScriptNow(task_index = null, test = false) {
@@ -1747,6 +1891,7 @@
           });
         },
         showSavepathSelect(index) {
+          this.fileSelect.addToTaskMode = false;
           this.fileSelect.targetField = "savepath";
           this.fileSelect.source = "quark";
           this.fileSelect.selectShare = false;
@@ -1762,6 +1907,7 @@
           this.getSavepathDetail(this.formData.tasklist[index].savepath);
         },
         showAlistTargetPathSelect(index) {
+          this.fileSelect.addToTaskMode = false;
           this.fileSelect.targetField = "alist_target_path";
           this.fileSelect.source = "alist";
           this.fileSelect.selectShare = false;
@@ -1802,6 +1948,7 @@
           });
         },
         showShareSelect(index, urlIndex = 0, shareurl = null) {
+          this.fileSelect.addToTaskMode = false;
           this.fileSelect.selectShare = true;
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
