@@ -396,7 +396,7 @@
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
                       <span class="badge badge-warning ml-2" v-if="isTaskEdited(index)">已编辑</span>
-                      <span class="text-muted ml-2" v-if="task.update_time">更新时间：{{ task.update_time }}</span>
+                      <span class="text-muted ml-2 task-update-time" v-if="task.update_time">更新时间：{{ task.update_time }}</span>
                     </div>
                   </div>
                   <div class="col-auto">
