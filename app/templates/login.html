@@ -10,52 +10,225 @@
     <meta name="apple-mobile-web-app-title" content="QuarkAutoSave">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="apple-touch-icon" href="/static/favicon.ico">
-    <title>鐧诲綍</title>
+    <title>登录</title>
     <link rel="stylesheet" href="./static/css/bootstrap.min.css">
     <link rel="stylesheet" href="./static/css/bootstrap-icons.min.css">
     <script src="/static/js/pwa-register.js"></script>
     <style>
+        :root {
+            --bg-0: #eef4ff;
+            --bg-1: #f6f9ff;
+            --bg-2: #e8f0ff;
+            --glass-bg: rgba(255, 255, 255, 0.56);
+            --glass-border: rgba(255, 255, 255, 0.72);
+            --text-main: #1f2a44;
+            --text-sub: #5f6e8c;
+            --primary: #2f7cff;
+        }
+
         body {
-            background: linear-gradient(135deg, #c4d7ff 0%, #7996ff 100%);
             min-height: 100vh;
+            margin: 0;
             display: flex;
             align-items: center;
+            background:
+                radial-gradient(1200px 600px at -10% -20%, #d8ebff 0%, transparent 65%),
+                radial-gradient(1000px 500px at 100% 0%, #dbe8ff 0%, transparent 60%),
+                linear-gradient(165deg, var(--bg-0) 0%, var(--bg-1) 50%, var(--bg-2) 100%);
+            color: var(--text-main);
+            font-family: "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Segoe UI", sans-serif;
+            overflow: hidden;
+        }
+
+        .login-bg {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .login-bg .orb {
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(8px);
+            opacity: .72;
+            animation: float 12s ease-in-out infinite alternate;
+        }
+
+        .login-bg .orb-a {
+            width: 360px;
+            height: 360px;
+            left: -90px;
+            top: 70px;
+            background: radial-gradient(circle at 30% 30%, rgba(120, 198, 255, .76), rgba(120, 198, 255, .12));
+        }
+
+        .login-bg .orb-b {
+            width: 420px;
+            height: 420px;
+            right: -120px;
+            top: 24%;
+            background: radial-gradient(circle at 50% 45%, rgba(172, 163, 255, .62), rgba(172, 163, 255, .12));
+            animation-delay: 2s;
+        }
+
+        .login-bg .orb-c {
+            width: 300px;
+            height: 300px;
+            left: 30%;
+            bottom: -120px;
+            background: radial-gradient(circle at 50% 35%, rgba(130, 240, 214, .58), rgba(130, 240, 214, .12));
+            animation-delay: 4s;
+        }
+
+        .login-wrap {
+            position: relative;
+            z-index: 1;
+            width: 100%;
         }
 
         .login-card {
-            max-width: 400px;
+            max-width: 420px;
             width: 100%;
             margin: 0 auto;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+            background:
+                radial-gradient(120% 100% at 16% -8%, rgba(255, 255, 255, .9) 0%, rgba(255, 255, 255, .12) 58%, transparent 76%),
+                linear-gradient(155deg, var(--glass-bg), rgba(224, 238, 255, .56));
+            backdrop-filter: blur(24px) saturate(170%);
+            -webkit-backdrop-filter: blur(24px) saturate(170%);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, .98),
+                inset 0 -14px 26px rgba(145, 182, 238, .12),
+                0 18px 40px rgba(19, 56, 118, .24);
             overflow: hidden;
         }
 
         .login-header {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 1rem 2rem;
-            text-align: center;
+            padding: 1.2rem 2rem .85rem;
+            background: rgba(255, 255, 255, .2);
+            border-bottom: 1px solid rgba(176, 198, 232, .35);
+        }
+
+        .login-header h1 {
+            margin: 0 0 .35rem;
+            font-weight: 800;
+            font-size: 1.55rem;
+            letter-spacing: .2px;
+        }
+
+        .login-header p {
+            margin: 0;
+            color: var(--text-sub);
+            font-size: .92rem;
         }
 
         .login-body {
-            background: #fff;
-            padding: 2rem;
+            background: rgba(255, 255, 255, .12);
+            padding: 1.3rem 1.6rem 1.6rem;
         }
 
-        .btn {
-            border-radius: 20px;
-            padding: 10px 20px;
+        .form-label {
+            color: #334c77;
+            font-weight: 600;
+            margin-bottom: .45rem;
+        }
+
+        .input-group-text {
+            border-radius: 12px 0 0 12px !important;
+            border: 1px solid rgba(175, 193, 223, .56);
+            background: rgba(255, 255, 255, .64);
+            color: #506593;
+        }
+
+        .form-control {
+            border-radius: 0 12px 12px 0 !important;
+            border: 1px solid rgba(175, 193, 223, .56);
+            background: rgba(255, 255, 255, .76);
+            color: var(--text-main);
+        }
+
+        .form-control:focus {
+            outline: none;
+            box-shadow: none;
+            border-color: rgba(147, 176, 228, .7);
+            background: rgba(255, 255, 255, .86);
+        }
+
+        .btn-login {
             width: 100%;
+            border-radius: 14px !important;
+            border: 1px solid rgba(91, 154, 248, .9);
+            color: #fff;
+            background:
+                radial-gradient(120% 100% at 16% -8%, rgba(196, 225, 255, .62) 0%, rgba(196, 225, 255, 0) 58%),
+                linear-gradient(145deg, rgba(86, 152, 252, .95), rgba(47, 117, 236, .94));
+            box-shadow:
+                inset 0 1px 0 rgba(214, 235, 255, .55),
+                inset 0 -10px 18px rgba(22, 84, 190, .18),
+                0 10px 24px rgba(36, 90, 184, .28);
+            padding: .62rem 1rem;
+            font-weight: 700;
+            letter-spacing: .2px;
+            transition: transform .2s cubic-bezier(.22,.9,.28,1), box-shadow .2s cubic-bezier(.22,.9,.28,1), border-color .2s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-1px);
+            box-shadow:
+                inset 0 1px 0 rgba(230, 243, 255, .62),
+                inset 0 -12px 20px rgba(22, 84, 190, .22),
+                0 14px 28px rgba(30, 86, 180, .34);
+        }
+
+        .btn-login:active {
+            transform: translateY(0) scale(.985);
+        }
+
+        .alert {
+            border-radius: 12px;
+            border: 1px solid rgba(240, 135, 148, .42);
+            background: rgba(255, 225, 229, .74);
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate3d(0, 0, 0) scale(1);
+            }
+            100% {
+                transform: translate3d(20px, -16px, 0) scale(1.05);
+            }
+        }
+
+        @media (max-width: 576px) {
+            .login-wrap {
+                padding: 0 10px;
+            }
+            .login-card {
+                border-radius: 16px;
+            }
+            .login-header {
+                padding: 1rem 1.1rem .7rem;
+            }
+            .login-body {
+                padding: 1rem .95rem 1.15rem;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
+    <div class="login-bg" aria-hidden="true">
+        <span class="orb orb-a"></span>
+        <span class="orb orb-b"></span>
+        <span class="orb orb-c"></span>
+    </div>
+    <div class="container login-wrap">
         <div class="login-card">
             <div class="login-header">
-                <h1 class="mb-3">鐧诲綍</h1>
-                <p class="text-muted">娆㈣繋鍥炴潵锛岃鐧诲綍鎮ㄧ殑璐︽埛</p>
+                <h1 class="mb-3">登录</h1>
+                <p class="text-muted">欢迎回来，请登录您的账户</p>
             </div>
             <div class="login-body">
                 {% if message %}
@@ -65,7 +238,7 @@
                 {% endif %}
                 <form action="/login" method="POST">
                     <div class="form-group mb-3">
-                        <label for="username" class="form-label">鐢ㄦ埛鍚?/label>
+                        <label for="username" class="form-label">用户名</label>
                         <div class="input-group">
                             <div class="input-group-prepend">
                                 <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
@@ -74,7 +247,7 @@
                         </div>
                     </div>
                     <div class="form-group mb-4">
-                        <label for="password" class="form-label">瀵嗙爜</label>
+                        <label for="password" class="form-label">密码</label>
                         <div class="input-group">
                             <div class="input-group-prepend">
                                 <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
@@ -82,7 +255,7 @@
                             <input type="password" class="form-control" id="password" name="password" required>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">鐧诲綍</button>
+                    <button type="submit" class="btn btn-login">登录</button>
                 </form>
             </div>
         </div>
