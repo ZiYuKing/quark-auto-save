@@ -25,7 +25,7 @@ body {
 
 #app {
   position: relative;
-  isolation: isolate;
+  isolation: auto;
 }
 
 .ios-bg {
@@ -98,6 +98,49 @@ body {
   color: #1d335d !important;
   font-weight: 700;
   letter-spacing: 0.2px;
+}
+
+.navbar-toggler {
+  border: 1px solid rgba(255, 255, 255, 0.72) !important;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.74), rgba(233, 243, 255, 0.66));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-radius: 12px;
+  padding: 0.3rem 0.5rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 18px rgba(31, 72, 140, 0.2);
+  transition: transform .22s cubic-bezier(.22,.9,.28,1), box-shadow .22s cubic-bezier(.22,.9,.28,1), border-color .2s ease, background-color .2s ease;
+  animation: togglerPulse 2.8s ease-in-out infinite;
+}
+
+.navbar-toggler:hover {
+  transform: translateY(-1px);
+  border-color: rgba(139, 177, 240, 0.86) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(33, 80, 158, 0.24);
+}
+
+.navbar-toggler:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.navbar-toggler:focus {
+  outline: none !important;
+  box-shadow:
+    0 0 0 0.2rem rgba(71, 132, 239, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(33, 80, 158, 0.24);
+}
+
+.navbar-dark .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2890,100,116,0.95%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+@keyframes togglerPulse {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 6px 18px rgba(31, 72, 140, 0.2); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 8px 20px rgba(31, 72, 140, 0.28); }
 }
 
 .sidebar {
@@ -283,6 +326,25 @@ hr {
   box-shadow: 0 22px 44px rgba(20, 55, 110, 0.22);
 }
 
+/* Ensure modal is always above custom sidebar / glass layers */
+.modal {
+  z-index: 2050 !important;
+  pointer-events: auto !important;
+}
+
+.modal-backdrop {
+  z-index: 2040 !important;
+}
+
+.modal-backdrop.show {
+  opacity: 0.42;
+}
+
+.modal.show .modal-dialog,
+.modal.show .modal-content {
+  pointer-events: auto !important;
+}
+
 .modal-header,
 .modal-footer {
   border-color: rgba(180, 198, 228, 0.45);
@@ -357,17 +419,38 @@ hr {
     box-shadow: 12px 0 30px rgba(16, 43, 90, 0.18);
   }
 
-  #sidebarMenu.collapse:not(.show) {
-    display: none !important;
-  }
-
-  #sidebarMenu.collapse.show {
-    display: block !important;
+  #sidebarMenu {
     top: 54px;
     left: 0;
     bottom: auto;
     height: calc(100vh - 54px);
+    width: 82%;
+    max-width: 320px;
     overflow: hidden;
+    transform: translateX(-106%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform .28s cubic-bezier(.22,.9,.28,1), opacity .2s ease, visibility .2s ease;
+  }
+
+  #sidebarMenu.collapse {
+    display: block !important;
+    height: calc(100vh - 54px) !important;
+  }
+
+  #sidebarMenu.collapse.show,
+  #sidebarMenu.collapsing {
+    display: block !important;
+    transform: translateX(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  #sidebarMenu.collapsing {
+    height: calc(100vh - 54px) !important;
+    overflow: hidden !important;
   }
 
   #sidebarMenu .sidebar-sticky {
@@ -377,6 +460,31 @@ hr {
     overflow-y: auto;
   }
 
+  /* Prevent sidebar from intercepting clicks when modal is open */
+  body.modal-open #sidebarMenu {
+    pointer-events: none !important;
+  }
+
+  body.modal-open #sidebarMenu,
+  body.modal-open #sidebarMenu.collapse.show,
+  body.modal-open #sidebarMenu.collapsing {
+    transform: translateX(-106%) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  #sidebarMenu .sidebar-sticky .nav-item {
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: transform .22s cubic-bezier(.22,.9,.28,1), opacity .22s ease;
+  }
+
+  #sidebarMenu.collapse.show .sidebar-sticky .nav-item,
+  #sidebarMenu.collapsing .sidebar-sticky .nav-item {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
   .sidebar .nav-link {
     margin: 3px 8px;
     border-radius: 12px;
@@ -384,14 +492,46 @@ hr {
 
   .glass-main {
     padding-top: 10px;
-    padding-left: 6px !important;
-    padding-right: 6px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
   }
 
   .glass-panel {
     border-radius: 14px;
-    padding: 10px 8px 14px;
+    padding: 12px 10px 14px;
     margin-bottom: 12px;
+  }
+
+  .config-panel {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .config-panel .row.title {
+    margin-left: 2px;
+    margin-right: 2px;
+  }
+
+  .config-panel .row.title [class*="col-"],
+  .config-panel .row.title .col {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .config-panel .input-group,
+  .config-panel .form-group.row {
+    margin-left: 2px;
+    margin-right: 2px;
+  }
+
+  .config-panel .form-group.row > [class*="col-"] {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .config-panel .input-group > .form-control,
+  .config-panel .input-group > .custom-select {
+    min-width: 0;
   }
 
   .title h2 {
@@ -506,6 +646,18 @@ hr {
   .row.title {
     margin-top: 16px;
     margin-bottom: 8px;
+  }
+
+  .config-panel {
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+  }
+
+  .config-panel .input-group,
+  .config-panel .form-group.row,
+  .config-panel p {
+    margin-left: 2px;
+    margin-right: 2px;
   }
 
   .task-panel .row.title {
