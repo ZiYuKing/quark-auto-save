@@ -1231,3 +1231,76 @@ input[type="checkbox"]:focus {
     font-size: 0.78rem;
   }
 }
+
+/* 去除所有控件点击/聚焦后的轮廓边框与外发光（含挂载到 body 的弹窗） */
+*:focus,
+*:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.btn:focus,
+.btn:focus-visible,
+.form-control:focus,
+.custom-select:focus,
+select.form-control:focus,
+select.custom-select:focus,
+select.form-control-sm:focus,
+input[type="checkbox"]:focus,
+.task-dir-select-trigger:focus,
+.modal .close:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 强制覆盖 Bootstrap 焦点与激活态边框/阴影 */
+button:focus,
+button:active,
+input:focus,
+input:active,
+select:focus,
+select:active,
+textarea:focus,
+textarea:active,
+a:focus,
+a:active,
+.btn.focus,
+.btn:focus,
+.btn:active,
+.btn.active,
+.form-control:focus,
+.form-control:active,
+.custom-select:focus,
+.custom-select:active,
+.custom-control-input:focus ~ .custom-control-label::before,
+.custom-control-input:active ~ .custom-control-label::before,
+.form-check-input:focus,
+.form-check-input:active,
+.page-link:focus,
+.page-link:active,
+.dropdown-toggle:focus,
+.dropdown-toggle:active {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+input.form-control:focus,
+select.form-control:focus,
+textarea.form-control:focus,
+.custom-select:focus {
+  border-color: rgba(175, 193, 223, 0.55) !important;
+  background: rgba(255, 255, 255, 0.76) !important;
+}
+
+.btn:focus,
+.btn:active,
+.btn.active,
+.btn:not(:disabled):not(.disabled):active,
+.btn:not(:disabled):not(.disabled).active {
+  border-color: rgba(255, 255, 255, 0.78) !important;
+}
