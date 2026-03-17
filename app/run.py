@@ -161,6 +161,24 @@ def favicon():
     )
 
 
+@app.route("/manifest.webmanifest")
+def pwa_manifest():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "manifest.webmanifest",
+        mimetype="application/manifest+json",
+    )
+
+
+@app.route("/sw.js")
+def pwa_sw():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "sw.js",
+        mimetype="application/javascript",
+    )
+
+
 # 登录页面
 @app.route("/login", methods=["GET", "POST"])
 def login():
