@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./static/css/bootstrap.min.css">
   <link rel="stylesheet" href="./static/css/bootstrap-icons.min.css">
   <link rel="stylesheet" href="./static/css/dashboard.css">
+  <link rel="stylesheet" href="./static/css/ios-glass.css">
   <!-- Bootstrap JS -->
   <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
   <script src="./static/js/bootstrap.bundle.min.js"></script>
@@ -20,6 +21,12 @@
 
 <body>
   <div id="app">
+    <div class="ios-bg" aria-hidden="true">
+      <span class="orb orb-a"></span>
+      <span class="orb orb-b"></span>
+      <span class="orb orb-c"></span>
+      <span class="noise-layer"></span>
+    </div>
 
     <nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0">
       <a class="navbar-brand col-md-3 col-lg-2 mr-0 px-3" href="#"><i class="bi bi-clouds"></i> 夸克自动转存</a>
@@ -65,10 +72,10 @@
         </div>
       </nav>
 
-      <main class="col-md-9 col-lg-10 ml-sm-auto">
+      <main class="col-md-9 col-lg-10 ml-sm-auto glass-main">
         <form @submit.prevent="saveConfig" @keydown.enter.prevent>
 
-          <div v-if="activeTab === 'config'">
+          <div v-if="activeTab === 'config'" class="tab-panel glass-panel">
             <div class="row title">
               <div class="col-10">
                 <h2><i class="bi bi-cookie"></i> Cookie</h2>
@@ -305,7 +312,7 @@
             </div>
           </div>
 
-          <div v-if="activeTab === 'tasklist'">
+          <div v-if="activeTab === 'tasklist'" class="tab-panel glass-panel task-panel">
             <div class="row title">
               <div class="col">
                 <h2>任务列表</h2>
