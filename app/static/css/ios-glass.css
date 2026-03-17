@@ -1197,6 +1197,13 @@ input[type="checkbox"]:focus {
     font-size: 0.88rem;
   }
 
+  .task .btn.btn-block.text-left .text-muted.ml-2 {
+    display: block;
+    margin-left: 0 !important;
+    margin-top: 2px;
+    white-space: normal;
+  }
+
   .nav-tabs .nav-link {
     padding: 0.42rem 0.62rem;
     margin-right: 4px;
