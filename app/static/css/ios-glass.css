@@ -546,6 +546,16 @@ input[type="checkbox"]:focus {
   border-color: rgba(176, 193, 224, 0.58) !important;
 }
 
+/* 系统配置-插件列表按钮间距与右移 */
+.config-panel .form-group.row.mb-0 > div[data-toggle="collapse"] {
+  margin: 6px 0;
+  padding-left: 10px;
+}
+
+.config-panel .form-group.row.mb-0 > div[data-toggle="collapse"] .btn.btn-block.text-left {
+  margin: 0;
+}
+
 /* Custom dropdown for task path filter */
 .task-dir-custom-select {
   position: relative;
