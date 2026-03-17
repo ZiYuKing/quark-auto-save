@@ -848,11 +848,6 @@ class Quark:
             traceback.print_exc()
 
     def do_save_task(self, task):
-        # 判断资源失效记录
-        if task.get("shareurl_ban"):
-            print(f"《{task['taskname']}》：{task['shareurl_ban']}")
-            return
-
         # 兼容旧版本的 shareurl
         if "shareurl" in task and "shareurls" not in task:
             task["shareurls"] = [task["shareurl"]]
@@ -861,6 +856,26 @@ class Quark:
         shareurls = task.get("shareurls", [])
         if not shareurls:
             print(f"《{task['taskname']}》：没有分享链接")
+            return
+
+        # 维护每个分享链接的失效标记（前端依赖 shareurl_ban_list）
+        shareurl_ban_list = task.get("shareurl_ban_list", [])
+        if not isinstance(shareurl_ban_list, list):
+            shareurl_ban_list = []
+        while len(shareurl_ban_list) < len(shareurls):
+            shareurl_ban_list.append("")
+        if len(shareurl_ban_list) > len(shareurls):
+            shareurl_ban_list = shareurl_ban_list[: len(shareurls)]
+        # 兼容历史字段：仅有 shareurl_ban 时，兜底写入第一个链接
+        if task.get("shareurl_ban") and not any(
+            str(x).strip() for x in shareurl_ban_list
+        ):
+            shareurl_ban_list[0] = str(task.get("shareurl_ban") or "")
+        task["shareurl_ban_list"] = shareurl_ban_list
+
+        # 判断资源失效记录
+        if task.get("shareurl_ban"):
+            print(f"《{task['taskname']}》：{task['shareurl_ban']}")
             return
         
         # 合并所有链接的转存结果
@@ -882,20 +897,22 @@ class Quark:
             get_stoken = self.get_stoken(pwd_id, passcode)
             if get_stoken.get("status") == 200:
                 stoken = get_stoken["data"]["stoken"]
+                shareurl_ban_list[idx] = ""
             elif get_stoken.get("status") == 500:
                 print(f"跳过链接 [{idx + 1}]：网络异常 {get_stoken.get('message')}")
                 continue
             else:
                 message = get_stoken.get("message")
                 print(f"跳过链接 [{idx + 1}]：{message}")
-                if idx == 0:  # 只有第一个链接失败时才设置错误标记
-                    add_notify(f"❌《{task['taskname']}》：{message}\n")
-                    task["shareurl_ban"] = message
+                shareurl_ban_list[idx] = message or "分享为空，文件已被分享者删除"
+                add_notify(f"❌《{task['taskname']}》：{shareurl_ban_list[idx]}\n")
                 continue
             # print("stoken: ", stoken)
 
             # 传递已转存文件列表给检查函数
-            updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid, "", already_saved_files)
+            updated_tree = self.dir_check_and_save(
+                task, pwd_id, stoken, pdir_fid, "", already_saved_files, idx
+            )
             if updated_tree.size(1) > 0:
                 has_updates = True
                 
@@ -928,6 +945,12 @@ class Quark:
                                     node.tag, node.identifier, parent=merged_tree.root, data=node.data
                                 )
         
+        task["shareurl_ban_list"] = shareurl_ban_list
+        if any(str(x).strip() for x in shareurl_ban_list):
+            task["shareurl_ban"] = "分享为空，文件已被分享者删除"
+        else:
+            task.pop("shareurl_ban", None)
+
         if has_updates:
             final_saved_names = self.do_rename(merged_tree)
             added_count, added_names = self._update_task_saved_dirs(task, final_saved_names)
@@ -967,7 +990,7 @@ class Quark:
         task["saved_dirs"] = saved_dirs
         return len(added_names), added_names
 
-    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path="", already_saved_files=None):
+    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path="", already_saved_files=None, shareurl_index=None):
         tree = Tree()
         # 初始化已转存文件列表
         if already_saved_files is None:
@@ -981,6 +1004,12 @@ class Quark:
             if subdir_path == "":
                 task["shareurl_ban"] = "分享为空，文件已被分享者删除"
                 add_notify(f"❌《{task['taskname']}》：{task['shareurl_ban']}\n")
+                if (
+                    isinstance(task.get("shareurl_ban_list"), list)
+                    and shareurl_index is not None
+                    and 0 <= shareurl_index < len(task["shareurl_ban_list"])
+                ):
+                    task["shareurl_ban_list"][shareurl_index] = task["shareurl_ban"]
             return tree
         elif (
             len(share_file_list) == 1
@@ -1431,6 +1460,18 @@ def merge_runtime_saved_dirs_to_config(runtime_tasklist, config_tasklist):
             if name not in current_saved_dirs:
                 current_saved_dirs.append(name)
         matched_task["saved_dirs"] = current_saved_dirs
+        runtime_ban_list = runtime_task.get("shareurl_ban_list", [])
+        if isinstance(runtime_ban_list, list):
+            matched_task["shareurl_ban_list"] = [
+                str(x) for x in runtime_ban_list
+            ]
+            if any(str(x).strip() for x in runtime_ban_list):
+                matched_task["shareurl_ban"] = "分享为空，文件已被分享者删除"
+            else:
+                matched_task.pop("shareurl_ban", None)
+        runtime_ban = str(runtime_task.get("shareurl_ban", "")).strip()
+        if runtime_ban:
+            matched_task["shareurl_ban"] = runtime_ban
         runtime_update_time = str(runtime_task.get("update_time", "")).strip()
         if runtime_update_time:
             matched_task["update_time"] = runtime_update_time

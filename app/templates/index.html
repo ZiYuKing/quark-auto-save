@@ -1166,6 +1166,9 @@
                 if (task.shareurl_ban_list.length > task.shareurls.length) {
                   task.shareurl_ban_list = task.shareurl_ban_list.slice(0, task.shareurls.length);
                 }
+                if (task.shareurl_ban && !task.shareurl_ban_list.some(msg => !!(msg && String(msg).trim())) && task.shareurl_ban_list.length > 0) {
+                  task.shareurl_ban_list[0] = task.shareurl_ban;
+                }
                 task.shareurl_ban = task.shareurl_ban_list.some(msg => !!(msg && String(msg).trim()))
                   ? "分享为空，文件已被分享者删除"
                   : undefined;
