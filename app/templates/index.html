@@ -329,10 +329,7 @@
             <div class="row mb-3">
               <div class="col-12">
                 <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">资源搜索</span>
-                  </div>
-                  <input type="text" class="form-control" v-model="resourceSearch.keyword" placeholder="输入资源名称，聚合 CloudSaver + PanSou" @keyup.enter="searchResources()">
+                  <input type="text" class="form-control" v-model="resourceSearch.keyword" placeholder="输入资源名称，聚合搜索" @keyup.enter="searchResources()">
                   <div class="input-group-append">
                     <button class="btn btn-primary" type="button" @click="searchResources()">
                       <i v-if="resourceSearch.loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
