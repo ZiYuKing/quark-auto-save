@@ -213,6 +213,37 @@ hr {
   margin-top: 6px;
 }
 
+/* 展开任务详情区域统一间距 */
+.task .task-detail-panel .form-group.row {
+  margin-bottom: 14px;
+}
+
+.task .task-detail-panel .col-form-label {
+  padding-top: 0.45rem;
+}
+
+.task .task-detail-panel .input-group {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.task .task-detail-panel .input-group > .form-control,
+.task .task-detail-panel .input-group > .custom-select,
+.task .task-detail-panel .input-group > .task-dir-custom-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task .task-detail-panel .input-group > .input-group-prepend,
+.task .task-detail-panel .input-group > .input-group-append {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
 .task .btn.btn-block.text-left {
   margin-left: 6px;
   width: calc(100% - 6px);
@@ -632,6 +663,66 @@ input[type="checkbox"]:focus {
 .task-dir-select-option.active {
   background: linear-gradient(135deg, rgba(63, 132, 242, 0.9), rgba(98, 166, 255, 0.86));
   color: #fff;
+}
+
+/* 资源搜索输入与按钮间距 */
+.resource-search-group {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.resource-search-group > .form-control {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 12px !important;
+}
+
+.resource-search-group.input-group > .input-group-append {
+  display: inline-flex;
+  margin-left: 5px !important;
+}
+
+.resource-search-group.input-group > .input-group-append > .btn {
+  border-radius: 12px !important;
+}
+
+.resource-search-group.input-group > .input-group-append > .btn + .btn {
+  margin-left: 5px !important;
+}
+
+/* 任务列表筛选区（名称/路径）统一间距 */
+.task-panel > .row .input-group.col-md-9 {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.task-panel > .row .input-group.col-md-9 > .form-control,
+.task-panel > .row .input-group.col-md-9 > .task-dir-custom-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task-panel > .row .input-group.col-md-9 > .input-group-append {
+  margin-left: 0 !important;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.task-panel > .row .input-group.col-md-9 > .input-group-append > .btn + .btn {
+  margin-left: 5px !important;
+}
+
+/* 底部“增加任务”按钮组间距 */
+.task-panel .btn-group[aria-label="任务操作"] {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.task-panel .btn-group[aria-label="任务操作"] > .btn + .btn {
+  margin-left: 0 !important;
+  border-left-width: 1px !important;
 }
 
 .task-dir-select-option.active {
@@ -1311,4 +1402,47 @@ textarea.form-control:focus,
 .btn:not(:disabled):not(.disabled):active,
 .btn:not(:disabled):not(.disabled).active {
   border-color: rgba(255, 255, 255, 0.78) !important;
+}
+
+/* 系统配置页整体控件间距优化 */
+.config-panel .row.title {
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+
+.config-panel p {
+  margin-bottom: 12px;
+  line-height: 1.62;
+}
+
+.config-panel .input-group {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 10px !important;
+}
+
+.config-panel .input-group > .form-control,
+.config-panel .input-group > .custom-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.config-panel .input-group > .input-group-prepend,
+.config-panel .input-group > .input-group-append {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.config-panel .form-group.row {
+  margin-bottom: 12px;
+}
+
+.config-panel .form-group.row > .col-sm-10,
+.config-panel .form-group.row > .col-sm-2 {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
