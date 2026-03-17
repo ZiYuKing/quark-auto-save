@@ -200,6 +200,11 @@ hr {
   padding: 10px 14px;
 }
 
+.tab-panel.task-panel .task:first-of-type {
+  margin-top: 16px !important;
+  margin-bottom: 16px !important;
+}
+
 .task .collapse {
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid rgba(255, 255, 255, 0.56);
@@ -251,6 +256,111 @@ hr {
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
+/* Custom Select (global) */
+select.form-control,
+select.custom-select,
+select.form-control-sm {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 2.1rem !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(167, 188, 224, 0.68) !important;
+  background-color: rgba(255, 255, 255, 0.86) !important;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='rgba(89,106,138,0.95)' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.2' d='M5 7.5l5 5 5-5'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgba(255,255,255,0.95), rgba(236,245,255,0.9));
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 0.62rem center, center;
+  background-size: 13px 13px, 100% 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 5px 10px rgba(24, 66, 136, 0.08);
+  transition: border-color .22s ease, box-shadow .22s ease, transform .16s ease;
+}
+
+select.form-control:hover,
+select.custom-select:hover,
+select.form-control-sm:hover {
+  border-color: rgba(121, 157, 220, 0.8) !important;
+}
+
+select.form-control:focus,
+select.custom-select:focus,
+select.form-control-sm:focus {
+  border-color: rgba(66, 132, 239, 0.82) !important;
+  box-shadow:
+    0 0 0 0.18rem rgba(66, 132, 239, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 8px 16px rgba(24, 66, 136, 0.13) !important;
+}
+
+/* Custom Checkbox (global) */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 1.05rem;
+  height: 1.05rem;
+  min-width: 1.05rem;
+  border-radius: 0.33rem;
+  border: 1.6px solid rgba(132, 156, 198, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(233, 242, 255, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 2px 6px rgba(22, 58, 120, 0.12);
+  cursor: pointer;
+  vertical-align: middle;
+  margin-right: 0.28rem;
+  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .14s ease;
+}
+
+input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  left: 0.28rem;
+  top: 0.08rem;
+  width: 0.34rem;
+  height: 0.62rem;
+  border-right: 2.1px solid transparent;
+  border-bottom: 2.1px solid transparent;
+  transform: rotate(40deg) scale(0.86);
+  transition: border-color .16s ease, opacity .16s ease, transform .16s ease;
+  opacity: 0;
+}
+
+input[type="checkbox"]:hover {
+  border-color: rgba(101, 142, 215, 0.95);
+}
+
+input[type="checkbox"]:active {
+  transform: scale(0.95);
+}
+
+input[type="checkbox"]:checked {
+  border-color: rgba(58, 118, 232, 0.98);
+  background: linear-gradient(180deg, rgba(98, 163, 255, 0.98), rgba(49, 119, 236, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(169, 206, 255, 0.62),
+    0 4px 9px rgba(40, 95, 190, 0.28);
+}
+
+input[type="checkbox"]:checked::after {
+  opacity: 1;
+  border-right-color: rgba(255, 255, 255, 0.98);
+  border-bottom-color: rgba(255, 255, 255, 0.98);
+  transform: rotate(40deg) scale(1);
+}
+
+input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 0.16rem rgba(66, 132, 239, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 2px 6px rgba(22, 58, 120, 0.12);
+}
+
 .form-control:focus,
 .custom-select:focus {
   background: rgba(255, 255, 255, 0.95);
@@ -300,6 +410,89 @@ hr {
 .saved-dir-episode-list {
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(176, 193, 224, 0.58) !important;
+}
+
+/* Custom dropdown for task path filter */
+.task-dir-custom-select {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task-dir-select-trigger {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 188, 224, 0.68);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(236, 245, 255, 0.9));
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.38rem 0.72rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 5px 10px rgba(24, 66, 136, 0.08);
+  transition: border-color .22s ease, box-shadow .22s ease, transform .16s ease;
+}
+
+.task-dir-select-trigger:hover {
+  border-color: rgba(121, 157, 220, 0.8);
+}
+
+.task-dir-select-trigger:focus {
+  outline: none;
+  border-color: rgba(66, 132, 239, 0.82);
+  box-shadow:
+    0 0 0 0.18rem rgba(66, 132, 239, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 8px 16px rgba(24, 66, 136, 0.13);
+}
+
+.task-dir-select-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 2070;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 189, 223, 0.65);
+  background: rgba(248, 252, 255, 0.95);
+  backdrop-filter: blur(14px) saturate(145%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  box-shadow: 0 14px 26px rgba(22, 64, 132, 0.18);
+  padding: 4px;
+}
+
+.task-dir-select-option {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #31496f;
+  border-radius: 9px;
+  padding: 0.38rem 0.52rem;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  transition: background-color .16s ease, color .16s ease;
+}
+
+.task-dir-select-option:hover {
+  background: rgba(85, 141, 235, 0.14);
+  color: #234d9a;
+}
+
+.task-dir-select-option.active {
+  background: linear-gradient(135deg, rgba(63, 132, 242, 0.9), rgba(98, 166, 255, 0.86));
+  color: #fff;
+}
+
+.task-dir-select-option.active {
+  background: linear-gradient(135deg, rgba(58, 127, 236, 0.93), rgba(78, 156, 253, 0.92));
+  color: #fff;
 }
 
 .nav-tabs .nav-link {

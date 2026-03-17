@@ -353,9 +353,29 @@
                 <div class="row">
                   <label class="col-form-label col-md-3">路径筛选</label>
                   <div class="input-group col-md-9">
-                    <select class="form-control" v-model="taskDirSelected">
-                      <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
-                    </select>
+                    <div class="task-dir-custom-select" @click.stop>
+                      <button type="button" class="task-dir-select-trigger" @click="toggleTaskDirDropdown()">
+                        <span v-html="taskDirSelected || '全部路径'"></span>
+                        <i class="bi" :class="showTaskDirDropdown ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                      </button>
+                      <div class="task-dir-select-menu" v-if="showTaskDirDropdown">
+                        <button
+                          type="button"
+                          class="task-dir-select-option"
+                          :class="{active: taskDirSelected === ''}"
+                          @click="selectTaskDirOption('')"
+                        >全部路径</button>
+                        <button
+                          type="button"
+                          class="task-dir-select-option"
+                          v-for="(dir, index) in taskDirOptions"
+                          :key="`task_dir_opt_${index}`"
+                          :class="{active: taskDirSelected === dir}"
+                          @click="selectTaskDirOption(dir)"
+                          v-html="dir"
+                        ></button>
+                      </div>
+                    </div>
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
                     </div>
@@ -363,6 +383,7 @@
                 </div>
               </div>
             </div>
+            <hr>
             <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
               <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
                 <hr>
@@ -969,8 +990,9 @@
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",
-        taskDirs: [""],
+        taskDirs: [],
         taskDirSelected: "",
+        showTaskDirDropdown: false,
         taskNameFilter: "",
         modalLoading: false,
         smart_param: {
@@ -1052,6 +1074,10 @@
       computed: {
         savedDirEpisodePickerEpisodes() {
           return Array.from({ length: this.savedDirEpisodePicker.maxEpisode }, (_, i) => i + 1);
+        },
+        taskDirOptions() {
+          const dirs = Array.isArray(this.taskDirs) ? this.taskDirs : [];
+          return [...new Set(dirs.filter(dir => !!(dir && String(dir).trim())))].sort();
         }
       },
       watch: {
@@ -1080,6 +1106,9 @@
         document.addEventListener('click', (e) => {
           if (!e.target.closest('.input-group')) {
             this.smart_param.showSuggestions = false;
+          }
+          if (!e.target.closest('.task-dir-custom-select')) {
+            this.showTaskDirDropdown = false;
           }
         });
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -1129,9 +1158,17 @@
         },
         changeTab(tab) {
           this.activeTab = tab;
+          this.showTaskDirDropdown = false;
           if (window.innerWidth <= 768) {
             $('#sidebarMenu').collapse('toggle')
           }
+        },
+        toggleTaskDirDropdown() {
+          this.showTaskDirDropdown = !this.showTaskDirDropdown;
+        },
+        selectTaskDirOption(dir) {
+          this.taskDirSelected = dir || "";
+          this.showTaskDirDropdown = false;
         },
         checkNewVersion() {
           this.versionTips = this.version;
@@ -1190,10 +1227,12 @@
                 return task;
               });
               // 获取所有任务父目录
+              this.taskDirs = [];
               config_data.tasklist.forEach(item => {
-                parentDir = this.getParentDirectory(item.savepath)
-                if (!this.taskDirs.includes(parentDir))
+                const parentDir = this.getParentDirectory(item.savepath);
+                if (parentDir && !this.taskDirs.includes(parentDir)) {
                   this.taskDirs.push(parentDir);
+                }
               });
               this.newTask.addition = config_data.task_plugins_config_default;
               this.ensureAlistTransferConfig(this.newTask);
@@ -1991,6 +2030,9 @@
             return;
           }
           this[target] = "";
+          if (target === 'taskDirSelected') {
+            this.showTaskDirDropdown = false;
+          }
         },
         async runScriptNow(task_index = null, test = false) {
           body = {};
