@@ -299,21 +299,54 @@
                 </div>
               </div>
               <div class="form-group row">
-                <label class="col-sm-2 col-form-label">用户名</label>
+                <label class="col-sm-2 col-form-label">Username</label>
                 <div class="col-sm-10">
-                  <input type="text" v-model="formData.source.gying.username" class="form-control" placeholder="用户名">
+                  <input type="text" v-model="formData.source.gying.username" class="form-control" placeholder="Username">
                 </div>
               </div>
               <div class="form-group row">
-                <label class="col-sm-2 col-form-label">密码</label>
+                <label class="col-sm-2 col-form-label">Password</label>
                 <div class="col-sm-10">
-                  <input type="password" v-model="formData.source.gying.password" class="form-control" placeholder="密码">
+                  <input type="password" v-model="formData.source.gying.password" class="form-control" placeholder="Password">
                 </div>
               </div>
               <div class="form-group row">
                 <label class="col-sm-2 col-form-label">Cookie</label>
                 <div class="col-sm-10">
                   <input type="text" v-model="formData.source.gying.cookie" class="form-control" placeholder="app_auth=...;PHPSESSID=...;">
+                </div>
+              </div>
+            </div>
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_butailing" aria-expanded="true" aria-controls="collapse_butailing">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> Butailing
+                </div>
+              </div>
+            </div>
+            <div class="collapse show ml-3" id="collapse_butailing">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">URL</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.butailing.url" class="form-control" placeholder="https://web5.mukaku.com">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">App ID</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.butailing.app_id" class="form-control" placeholder="app_id">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">Identity</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.butailing.identity" class="form-control" placeholder="identity">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">Access Token</label>
+                <div class="col-sm-10">
+                  <input type="password" v-model="formData.source.butailing.access_token" class="form-control" placeholder="access_token">
                 </div>
               </div>
             </div>
@@ -806,20 +839,25 @@
               <li class="nav-item">
                 <a href="#" class="nav-link" :class="{active: resourceSearch.activeTab === 'gying'}" @click.prevent="resourceSearch.activeTab = 'gying'">GYING</a>
               </li>
+              <li class="nav-item">
+                <a href="#" class="nav-link" :class="{active: resourceSearch.activeTab === 'butailing'}" @click.prevent="resourceSearch.activeTab = 'butailing'">不太灵</a>
+              </li>
             </ul>
+
             <template v-if="resourceSearch.activeTab === 'cloud'">
               <div class="text-muted mb-2" v-if="!resourceSearch.resultsCloud.length">没有搜索到结果</div>
               <div v-for="(item, idx) in resourceSearch.resultsCloud" :key="'cloud_'+idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openResourceSearchResult(item)">
                 <div><b>{{ item.taskname }}</b></div>
                 <div class="text-muted">
-                  <span class="badge bg-transparent border border-success text-success">{{ item.source || "网络公开" }}</span>
+                  <span class="badge bg-transparent border border-success text-success">{{ item.source || '网络公开' }}</span>
                   <span class="badge bg-transparent border border-info text-info" v-if="item.channel">{{ item.channel }}</span>
                   <span class="badge bg-transparent border border-dark text-dark" v-if="item.datetime">{{ item.datetime }}</span>
                 </div>
                 <div class="text-truncate"><a :href="item.shareurl" target="_blank" @click.stop>{{ item.shareurl }}</a></div>
               </div>
             </template>
-            <template v-else>
+
+            <template v-else-if="resourceSearch.activeTab === 'gying'">
               <template v-if="!resourceSearch.gyingParent">
                 <div class="text-muted mb-2" v-if="!resourceSearch.resultsGying.length">没有搜索到结果</div>
                 <div v-for="(item, idx) in resourceSearch.resultsGying" :key="'gying_'+idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openResourceSearchResult(item)">
@@ -853,12 +891,77 @@
                 </div>
               </template>
             </template>
+
+            <template v-else>
+              <template v-if="!resourceSearch.butailingDetail">
+                <div class="text-muted mb-2" v-if="!resourceSearch.resultsButailing.length">没有搜索到结果</div>
+                <div v-for="(item, idx) in resourceSearch.resultsButailing" :key="'butailing_'+idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openButailingDetail(item)">
+                  <div class="d-flex align-items-start">
+                    <img :src="item.image || '/static/favicon.ico'" alt="cover" style="width:64px;height:90px;object-fit:cover;border-radius:4px;flex-shrink:0;" @error="$event.target.src='/static/favicon.ico'">
+                    <div class="ml-2 flex-grow-1">
+                      <div><b>{{ item.title || item.taskname || '&#x8BE6;&#x60C5;' }}</b></div>
+                      <div class="text-muted">{{ (item.years || '') + (item.production_area || '') + (item.class || '') + (item.long_time || '') }}</div>
+                      <div class="mt-1">
+                        <span class="badge mr-2" style="background-color:#d9f2dd;color:#2f6b3b;">&#x8C46;&#x74E3;{{ item.doub_score || '-' }}</span>
+                        <span class="badge" style="background-color:#fff4cc;color:#7a6113;">IMDb{{ item.IMDB_score || '-' }}</span>
+                      </div>
+                      <div class="text-muted">&#x53C8;&#x540D;: {{ item.alias || '-' }}</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="mb-2 d-flex align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetButailingDetail()"><i class="bi bi-arrow-left"></i> &#x8FD4;&#x56DE;</button>
+                  <div class="ml-2 text-truncate"><b>{{ (resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.title) || '&#x8BE6;&#x60C5;' }}</b></div>
+                </div>
+                <div class="text-muted mb-2" v-if="resourceSearch.butailingDetailLoading">&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x8BE6;&#x60C5;...</div>
+                <div class="text-danger mb-2" v-if="resourceSearch.butailingDetailError">{{ resourceSearch.butailingDetailError }}</div>
+                <template v-if="!resourceSearch.butailingDetailLoading && !resourceSearch.butailingDetailError && resourceSearch.butailingDetail">
+                  <div class="card mb-2">
+                    <div class="card-body p-2">
+                      <div class="d-flex align-items-start">
+                        <img :src="(resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.image) || '/static/favicon.ico'" alt="cover" style="width:72px;height:100px;object-fit:cover;border-radius:4px;flex-shrink:0;" @error="$event.target.src='/static/favicon.ico'">
+                        <div class="ml-2 flex-grow-1">
+                          <div><b>{{ (resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.title) || '-' }}</b></div>
+                          <div class="text-muted">{{ (resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.years) || '-' }} {{ (resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.class) || '-' }}</div>
+                          <div class="text-muted mt-1" v-if="resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.abstract">{{ resourceSearch.butailingDetail.info.abstract }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <ul class="nav nav-tabs mb-2">
+                    <li class="nav-item">
+                      <a href="#" class="nav-link" :class="{active: resourceSearch.butailingDetailTab === 'quark'}" @click.prevent="resourceSearch.butailingDetailTab = 'quark'">&#x5938;&#x514B;&#x7F51;&#x76D8;</a>
+                    </li>
+                    <li class="nav-item">
+                      <a href="#" class="nav-link" :class="{active: resourceSearch.butailingDetailTab === 'magnet'}" @click.prevent="resourceSearch.butailingDetailTab = 'magnet'">&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
+                    </li>
+                  </ul>
+                  <template v-if="resourceSearch.butailingDetailTab === 'quark'">
+                    <div class="text-muted" v-if="!resourceSearch.butailingDetail.quark || !resourceSearch.butailingDetail.quark.length">&#x6682;&#x65E0;&#x5938;&#x514B;&#x7F51;&#x76D8;&#x8D44;&#x6E90;</div>
+                    <div v-for="(q, qi) in (resourceSearch.butailingDetail.quark || [])" :key="'quark_'+qi" class="border rounded p-2 mb-1 cursor-pointer" @click="openButailingQuarkResource(q)">
+                      <div><b>{{ q.seed_name || '-' }}</b></div>
+                      <div class="text-truncate"><a :href="q.link" target="_blank" @click.stop>{{ q.link }}</a></div>
+                      <div class="text-muted small" v-if="q.code">&#x63D0;&#x53D6;&#x7801;: {{ q.code }}</div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="text-muted" v-if="!resourceSearch.butailingDetail.magnets || !resourceSearch.butailingDetail.magnets.length">&#x6682;&#x65E0;&#x78C1;&#x529B;&#x94FE;&#x63A5;</div>
+                    <div v-for="(m, mi) in (resourceSearch.butailingDetail.magnets || [])" :key="'magnet_'+mi" class="border rounded p-2 mb-1">
+                      <div><b>{{ m.zname || '-' }}</b></div>
+                      <div class="text-muted small">{{ m.zsize || '-' }} &middot; {{ m.zqxd || '-' }} &middot; {{ m.ezt || '-' }}</div>
+                      <div class="text-break small">{{ m.zlink }}</div>
+                    </div>
+                  </template>
+                </template>
+              </template>
+            </template>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 模态框 缺失剧集 -->
     <div class="modal" tabindex="-1" id="missingEpisodesModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -976,6 +1079,12 @@
               username: "",
               password: "",
               cookie: ""
+            },
+            butailing: {
+              url: "",
+              app_id: "",
+              identity: "",
+              access_token: ""
             }
           },
         },
@@ -1016,10 +1125,15 @@
           activeTab: "cloud",
           resultsCloud: [],
           resultsGying: [],
+          resultsButailing: [],
           gyingParent: null,
           gyingSecondLoading: false,
           gyingSecondError: "",
           resultsGyingSecond: [],
+          butailingDetailLoading: false,
+          butailingDetailError: "",
+          butailingDetail: null,
+          butailingDetailTab: "quark",
           targetTaskIndex: 0
         },
         fileSelect: {
@@ -1264,6 +1378,14 @@
                   username: "",
                   password: "",
                   cookie: ""
+                };
+              }
+              if (!config_data.source.butailing) {
+                config_data.source.butailing = {
+                  url: "",
+                  app_id: "",
+                  identity: "",
+                  access_token: ""
                 };
               }
               if (!config_data.source.net) {
@@ -1601,29 +1723,45 @@
           });
         },
         getCurrentShareList() {
-          // 场景1：资源搜索结果 -> 添加到任务
+          // Scenario 1: search results -> add to task
           if (this.fileSelect.addToTaskMode && this.fileSelect.selectShare) {
-            // GYING 二级页优先
+            const currentSource = String(((this.fileSelect.share || {}).source) || "").toUpperCase();
+            if (currentSource === 'BUTAILING') {
+              const quarkList = (this.resourceSearch.butailingDetail && Array.isArray(this.resourceSearch.butailingDetail.quark))
+                ? this.resourceSearch.butailingDetail.quark
+                : [];
+              return quarkList
+                .filter(item => item && item.link)
+                .map(item => ({
+                  ...item,
+                  source: 'BUTAILING',
+                  taskname: item.seed_name || '\u4E0D\u592A\u7075\u5938\u514B\u8D44\u6E90',
+                  shareurl: String(item.link || "").trim(),
+                  channel: '\u5938\u514B\u7F51\u76D8'
+                }));
+            }
+
+            // GYING second-level results first
             if (this.resourceSearch.gyingParent) {
               return Array.isArray(this.resourceSearch.resultsGyingSecond)
                 ? this.resourceSearch.resultsGyingSecond
                 : [];
             }
 
-            // 当前 tab 是 GYING
+            // ?? tab ? GYING
             if (this.resourceSearch.activeTab === 'gying') {
               return Array.isArray(this.resourceSearch.resultsGying)
                 ? this.resourceSearch.resultsGying
                 : [];
             }
 
-            // 默认 cloud
+            // ?? cloud
             return Array.isArray(this.resourceSearch.resultsCloud)
               ? this.resourceSearch.resultsCloud
               : [];
           }
 
-          // 场景2：任务名建议搜索结果切换
+          // Scenario 2: task suggestion switching
           if (this.fileSelect.switchShare) {
             return (this.smart_param.taskSuggestions && Array.isArray(this.smart_param.taskSuggestions.data))
               ? this.smart_param.taskSuggestions.data
@@ -1938,10 +2076,13 @@
             }
             const cloudResults = Array.isArray(response.data.data) ? response.data.data : (response.data.data && response.data.data.cloud) || [];
             const gyingResults = (response.data && response.data.gying) || (response.data.data && response.data.data.gying) || [];
+            const butailingResults = (response.data && response.data.butailing) || (response.data.data && response.data.data.butailing) || [];
             this.resourceSearch.resultsCloud = cloudResults;
             this.resourceSearch.resultsGying = gyingResults;
+            this.resourceSearch.resultsButailing = Array.isArray(butailingResults) ? butailingResults : [];
             this.resourceSearch.activeTab = 'cloud';
             this.resetGyingSecondLayer();
+            this.resetButailingDetail();
             if (this.formData.tasklist.length > 0) {
               if (isTaskSearch && index >= 0 && index < this.formData.tasklist.length) {
                 this.resourceSearch.targetTaskIndex = index;
@@ -1978,10 +2119,18 @@
           this.resourceSearch.targetTaskIndex = matchedIndex >= 0 ? matchedIndex : 0;
         },
         openResourceSearchResult(item) {
-          if (!item || !item.shareurl) {
+          if (!item) {
             return;
           }
-          const isFirstLayerGying = ((item.source || "").toUpperCase() === "GYING") && !item.__secondLayer;
+          const sourceName = (item.source || "").toUpperCase();
+          if (sourceName === "BUTAILING") {
+            this.openButailingDetail(item);
+            return;
+          }
+          if (!item.shareurl) {
+            return;
+          }
+          const isFirstLayerGying = sourceName === "GYING" && !item.__secondLayer;
           if (isFirstLayerGying) {
             this.fetchGyingSecondLayer(item);
             return;
@@ -2035,6 +2184,72 @@
           }).finally(() => {
             this.resourceSearch.gyingSecondLoading = false;
           });
+        },
+        resetButailingDetail() {
+          this.resourceSearch.butailingDetailLoading = false;
+          this.resourceSearch.butailingDetailError = "";
+          this.resourceSearch.butailingDetail = null;
+          this.resourceSearch.butailingDetailTab = "quark";
+        },
+        openButailingDetail(item) {
+          const doubId = Number(item && item.doub_id);
+          if (!Number.isFinite(doubId) || doubId <= 0) {
+            this.resourceSearch.butailingDetailError = 'Load detail failed';
+            this.resourceSearch.butailingDetail = null;
+            return;
+          }
+          this.resourceSearch.butailingDetailLoading = true;
+          this.resourceSearch.butailingDetailError = "";
+          this.resourceSearch.butailingDetail = null;
+          this.resourceSearch.butailingDetailTab = "quark";
+          axios.post('/butailing_detail', {
+            doub_id: doubId
+          }).then(response => {
+            if (!response.data.success) {
+              this.resourceSearch.butailingDetailError = response.data.message || 'Load detail failed';
+              return;
+            }
+            const detail = response.data.data || {};
+            this.resourceSearch.butailingDetail = {
+              info: detail.info || {},
+              magnets: Array.isArray(detail.magnets) ? detail.magnets : [],
+              quark: Array.isArray(detail.quark) ? detail.quark : []
+            };
+          }).catch(error => {
+            console.error('Error /butailing_detail:', error);
+            this.resourceSearch.butailingDetailError = 'Load detail failed';
+          }).finally(() => {
+            this.resourceSearch.butailingDetailLoading = false;
+          });
+        },
+        openButailingQuarkResource(row) {
+          const shareurl = String((row && row.link) || "").trim();
+          if (!shareurl) {
+            this.showToast('\u5F53\u524D\u5938\u514B\u8D44\u6E90\u94FE\u63A5\u4E3A\u7A7A', 'warning');
+            return;
+          }
+          const item = {
+            source: 'BUTAILING',
+            taskname: (row && row.seed_name) || '\u4E0D\u592A\u7075\u5938\u514B\u8D44\u6E90',
+            shareurl,
+            channel: '\u5938\u514B\u7F51\u76D8'
+          };
+          this.fileSelect.addToTaskMode = true;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.selectShare = true;
+          this.fileSelect.switchShare = false;
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.error = undefined;
+          this.fileSelect.share = item;
+          this.fileSelect.shareurl = shareurl;
+          this.fileSelect.stoken = "";
+          this.fileSelect.index = this.formData.tasklist.length;
+          this.fileSelect.urlIndex = 0;
+          $('#resourceSearchModal').modal('hide');
+          $('#fileSelectModal').modal('show');
+          this.getShareDetail();
         },
         addCurrentShareToTask() {
           const taskIndex = Number(this.resourceSearch.targetTaskIndex);

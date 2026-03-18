@@ -348,7 +348,7 @@ def get_task_suggestions():
 
     try:
         search_results = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             features = []
             features.append(executor.submit(net_search))
             features.append(executor.submit(cs_search))
@@ -377,12 +377,13 @@ def resource_search():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").strip().lower()
-    if len(query) < 2:
-        return jsonify({"success": True, "data": [], "gying": []})
+    if len(query) < 1:
+        return jsonify({"success": True, "data": [], "gying": [], "butailing": []})
 
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
     gy_data = config_data.get("source", {}).get("gying", {})
+    bt_data = config_data.get("source", {}).get("butailing", {})
     cs_debug_stats = {"raw_count": 0, "quark_filtered_count": 0}
     source_errors = {}
 
@@ -435,15 +436,76 @@ def resource_search():
             return gy.search(query)
         return []
 
+    def bt_search():
+        app_id = str(bt_data.get("app_id", "")).strip()
+        identity = str(bt_data.get("identity", "")).strip()
+        access_token = str(bt_data.get("access_token", "")).strip()
+        if not (app_id and identity and access_token):
+            return []
+
+        base_url = (
+            str(bt_data.get("url", "")).strip().rstrip("/")
+            or "https://web5.mukaku.com"
+        )
+        url = f"{base_url}/prod/api/v1/getVideoList"
+        headers = {
+            "authorization": f"Bearer {access_token}",
+            "content-type": "application/json;charset=UTF-8",
+            "accept": "*/*",
+        }
+        params = {
+            "sb": query,
+            "page": 1,
+            "limit": 1000,
+            "app_id": app_id,
+            "identity": identity,
+            "access_token": access_token,
+        }
+        response = requests.get(url, headers=headers, params=params, timeout=20)
+        response.raise_for_status()
+        body = response.json()
+        if not body.get("success"):
+            raise ValueError(body.get("message") or "???????")
+
+        rows = (((body or {}).get("data") or {}).get("data") or [])
+        results = []
+        seen = set()
+        for item in rows:
+            doub_id = item.get("doub_id")
+            dedup_key = f"doub:{doub_id}" if doub_id else f"idcode:{item.get('idcode')}"
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            results.append(
+                {
+                    "source": "BUTAILING",
+                    "taskname": item.get("title", ""),
+                    "title": item.get("title", ""),
+                    "years": item.get("years", ""),
+                    "class": item.get("class", ""),
+                    "production_area": item.get("production_area", ""),
+                    "long_time": item.get("long_time", ""),
+                    "alias": item.get("alias", ""),
+                    "doub_score": item.get("doub_score", ""),
+                    "IMDB_score": item.get("IMDB_score", ""),
+                    "image": item.get("image", ""),
+                    "doub_id": doub_id,
+                    "idcode": item.get("idcode", ""),
+                }
+            )
+        return results
+
     try:
         search_results = []
         gy_results = []
+        bt_results = []
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = {
                 executor.submit(cs_search): "cs",
                 executor.submit(ps_search): "ps",
                 executor.submit(gy_search): "gy",
+                executor.submit(bt_search): "bt",
             }
 
             for future in as_completed(futures):
@@ -452,6 +514,8 @@ def resource_search():
                     result = future.result() or []
                     if source == "gy":
                         gy_results.extend(result)
+                    elif source == "bt":
+                        bt_results.extend(result)
                     else:
                         search_results.extend(result)
                 except Exception as e:
@@ -478,6 +542,7 @@ def resource_search():
             "success": True,
             "data": results,
             "gying": gy_results,
+            "butailing": bt_results,
         }
 
         # 可选：把错误带回前端，方便调试
@@ -492,8 +557,105 @@ def resource_search():
             "success": False,
             "message": str(e),
             "data": [],
-            "gying": []
+            "gying": [],
+            "butailing": []
         })
+
+
+@app.route("/butailing_detail", methods=["POST"])
+def butailing_detail():
+    if not is_login():
+        return jsonify({"success": False, "message": "unauthorized"})
+
+    payload = request.get_json(silent=True) or {}
+    doub_id = payload.get("doub_id")
+    if not doub_id:
+        return jsonify({"success": False, "message": "doub_id is required", "data": {}})
+
+    bt_data = config_data.get("source", {}).get("butailing", {})
+    app_id = str(bt_data.get("app_id", "")).strip()
+    identity = str(bt_data.get("identity", "")).strip()
+    access_token = str(bt_data.get("access_token", "")).strip()
+    if not (app_id and identity and access_token):
+        return jsonify(
+            {
+                "success": False,
+                "message": "butailing app_id/identity/access_token is required",
+                "data": {},
+            }
+        )
+
+    base_url = (
+        str(bt_data.get("url", "")).strip().rstrip("/") or "https://web5.mukaku.com"
+    )
+    url = f"{base_url}/prod/api/v1/getVideoDetail"
+    headers = {
+        "authorization": f"Bearer {access_token}",
+        "content-type": "application/json;charset=UTF-8",
+        "accept": "*/*",
+    }
+    params = {
+        "id": doub_id,
+        "app_id": app_id,
+        "identity": identity,
+        "access_token": access_token,
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=20)
+        response.raise_for_status()
+        body = response.json()
+        if not body.get("success"):
+            return jsonify(
+                {
+                    "success": False,
+                    "message": body.get("message") or "fetch detail failed",
+                    "data": {},
+                }
+            )
+        detail = body.get("data") or {}
+        all_seeds = detail.get("all_seeds") or []
+        magnets = []
+        for row in all_seeds:
+            zlink = str(row.get("zlink", "")).strip()
+            if not zlink:
+                continue
+            magnets.append(
+                {
+                    "zname": row.get("zname", ""),
+                    "zsize": row.get("zsize", ""),
+                    "zqxd": row.get("zqxd", ""),
+                    "ezt": row.get("ezt", ""),
+                    "zlink": zlink,
+                }
+            )
+
+        quark_rows = (((detail.get("movies_online_seed") or {}).get("quark")) or [])
+        quark = []
+        for row in quark_rows:
+            quark.append(
+                {
+                    "seed_name": row.get("seed_name", ""),
+                    "link": row.get("link", ""),
+                    "code": row.get("code", ""),
+                }
+            )
+
+        data = {
+            "info": {
+                "title": detail.get("title", ""),
+                "image": detail.get("image", ""),
+                "years": detail.get("years", ""),
+                "class": detail.get("class", ""),
+                "production_area": detail.get("production_area", ""),
+                "abstract": detail.get("abstract", ""),
+            },
+            "magnets": magnets,
+            "quark": quark,
+        }
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e), "data": {}})
 
 
 @app.route("/gying_second_layer", methods=["POST"])
@@ -973,6 +1135,11 @@ def init():
     config_data["source"]["gying"].setdefault("username", "")
     config_data["source"]["gying"].setdefault("password", "")
     config_data["source"]["gying"].setdefault("cookie", "")
+    config_data["source"].setdefault("butailing", {})
+    config_data["source"]["butailing"].setdefault("url", "")
+    config_data["source"]["butailing"].setdefault("app_id", "")
+    config_data["source"]["butailing"].setdefault("identity", "")
+    config_data["source"]["butailing"].setdefault("access_token", "")
 
     # 默认管理账号
     config_data["webui"] = {
