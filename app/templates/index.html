@@ -914,7 +914,10 @@
                 <div class="mb-2 d-flex align-items-center">
                   <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetButailingDetail()"><i class="bi bi-arrow-left"></i> &#x8FD4;&#x56DE;</button>
                 </div>
-                <div class="text-muted mb-2" v-if="resourceSearch.butailingDetailLoading">&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x8BE6;&#x60C5;...</div>
+                <div class="d-flex align-items-center text-muted mb-2" v-if="resourceSearch.butailingDetailLoading">
+                  <div class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></div>
+                  <span>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x8BE6;&#x60C5;...</span>
+                </div>
                 <div class="text-danger mb-2" v-if="resourceSearch.butailingDetailError">{{ resourceSearch.butailingDetailError }}</div>
                 <template v-if="!resourceSearch.butailingDetailLoading && !resourceSearch.butailingDetailError && resourceSearch.butailingDetail">
                   <div class="card mb-2">
@@ -948,9 +951,12 @@
                   <template v-else>
                     <div class="text-muted" v-if="!resourceSearch.butailingDetail.magnets || !resourceSearch.butailingDetail.magnets.length">&#x6682;&#x65E0;&#x78C1;&#x529B;&#x94FE;&#x63A5;</div>
                     <div v-for="(m, mi) in (resourceSearch.butailingDetail.magnets || [])" :key="'magnet_'+mi" class="border rounded p-2 mb-1">
-                      <div><b>{{ m.zname || '-' }}</b></div>
+                      <div class="d-flex align-items-start justify-content-between">
+                        <b class="mr-2">{{ m.zname || '-' }}</b>
+                        <a v-if="buildButailingDownUrl(m.down)" :href="buildButailingDownUrl(m.down)" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a>
+                      </div>
                       <div class="text-muted small">{{ m.zsize || '-' }} &middot; {{ m.zqxd || '-' }} &middot; {{ m.ezt || '-' }}</div>
-                      <div class="text-break small">{{ m.zlink }}</div>
+                      <div class="text-break small"><a :href="m.zlink" target="_blank" @click.stop>{{ m.zlink }}</a></div>
                     </div>
                   </template>
                 </template>
@@ -2192,15 +2198,21 @@
         },
         openButailingDetail(item) {
           const doubId = Number(item && item.doub_id);
-          if (!Number.isFinite(doubId) || doubId <= 0) {
-            this.resourceSearch.butailingDetailError = 'Load detail failed';
-            this.resourceSearch.butailingDetail = null;
-            return;
-          }
           this.resourceSearch.butailingDetailLoading = true;
           this.resourceSearch.butailingDetailError = "";
-          this.resourceSearch.butailingDetail = null;
+          this.resourceSearch.butailingDetail = {
+            info: item || {},
+            magnets: [],
+            quark: []
+          };
           this.resourceSearch.butailingDetailTab = "quark";
+
+          if (!Number.isFinite(doubId) || doubId <= 0) {
+            this.resourceSearch.butailingDetailLoading = false;
+            this.resourceSearch.butailingDetailError = 'Load detail failed';
+            return;
+          }
+
           axios.post('/butailing_detail', {
             doub_id: doubId
           }).then(response => {
@@ -2210,7 +2222,7 @@
             }
             const detail = response.data.data || {};
             this.resourceSearch.butailingDetail = {
-              info: detail.info || {},
+              info: detail.info || this.resourceSearch.butailingDetail.info || {},
               magnets: Array.isArray(detail.magnets) ? detail.magnets : [],
               quark: Array.isArray(detail.quark) ? detail.quark : []
             };
@@ -2250,6 +2262,16 @@
           $('#resourceSearchModal').modal('hide');
           $('#fileSelectModal').modal('show');
           this.getShareDetail();
+        },
+        buildButailingDownUrl(path) {
+          const downPath = String(path || "").trim();
+          if (!downPath) return "";
+          if (/^https?:\/\//i.test(downPath)) return downPath;
+          const baseUrl = String((((this.formData || {}).source || {}).butailing || {}).url || "").trim();
+          if (!baseUrl) return "";
+          const normalizedBase = baseUrl.replace(/\/+$/, "");
+          const normalizedPath = downPath.startsWith("/") ? downPath : `/${downPath}`;
+          return `${normalizedBase}${normalizedPath}`;
         },
         addCurrentShareToTask() {
           const taskIndex = Number(this.resourceSearch.targetTaskIndex);

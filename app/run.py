@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+﻿# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from flask import (
     json,
@@ -627,6 +627,7 @@ def butailing_detail():
                     "zqxd": row.get("zqxd", ""),
                     "ezt": row.get("ezt", ""),
                     "zlink": zlink,
+                    "down": row.get("down", ""),
                 }
             )
 
