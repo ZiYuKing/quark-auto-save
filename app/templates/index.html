@@ -413,7 +413,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
+                        <!-- <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
                           <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自网络搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
@@ -424,9 +424,9 @@
                             <span class="badge bg-transparent border border-info text-info">{{ suggestion.channel }}</span>
                             <span v-if="suggestion.datetime" class="badge bg-transparent border border-dark text-dark">{{ suggestion.datetime }}</span>
                           </div>
-                        </div>
-                        <div class="input-group-append" title="深度搜索">
-                          <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
+                        </div> -->
+                        <div class="input-group-append" title="资源搜索">
+                          <button class="btn btn-primary" type="button" @click="searchResources(index, task.taskname)">
                             <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                             <i v-else class="bi bi-search-heart"></i>
                           </button>
@@ -682,7 +682,7 @@
           </div>
           <div class="modal-body small">
             <!-- 分享链接来源 -->
-            <div class="mb-3 row" v-if="fileSelect.switchShare">
+            <div class="mb-3 row" v-if="fileSelect.switchShare || (fileSelect.addToTaskMode && fileSelect.selectShare)">
               <div class="col-sm-8">
                 <div>
                   <b>名称：</b>
@@ -1371,12 +1371,12 @@
           }
         },
         changeTaskname(index, task) {
-          if (this.smart_param.searchTimer) {
-            clearTimeout(this.smart_param.searchTimer);
-          }
-          this.smart_param.searchTimer = setTimeout(() => {
-            this.searchSuggestions(index, task.taskname, 0);
-          }, 1000);
+          // if (this.smart_param.searchTimer) {
+          //   clearTimeout(this.smart_param.searchTimer);
+          // }
+          // this.smart_param.searchTimer = setTimeout(() => {
+          //   this.searchSuggestions(index, task.taskname, 0);
+          // }, 1000);
           if (this.smart_param.savepath)
             task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
         },
@@ -1599,6 +1599,41 @@
           }).finally(() => {
             this.modalLoading = false;
           });
+        },
+        getCurrentShareList() {
+          // 场景1：资源搜索结果 -> 添加到任务
+          if (this.fileSelect.addToTaskMode && this.fileSelect.selectShare) {
+            // GYING 二级页优先
+            if (this.resourceSearch.gyingParent) {
+              return Array.isArray(this.resourceSearch.resultsGyingSecond)
+                ? this.resourceSearch.resultsGyingSecond
+                : [];
+            }
+
+            // 当前 tab 是 GYING
+            if (this.resourceSearch.activeTab === 'gying') {
+              return Array.isArray(this.resourceSearch.resultsGying)
+                ? this.resourceSearch.resultsGying
+                : [];
+            }
+
+            // 默认 cloud
+            return Array.isArray(this.resourceSearch.resultsCloud)
+              ? this.resourceSearch.resultsCloud
+              : [];
+          }
+
+          // 场景2：任务名建议搜索结果切换
+          if (this.fileSelect.switchShare) {
+            return (this.smart_param.taskSuggestions && Array.isArray(this.smart_param.taskSuggestions.data))
+              ? this.smart_param.taskSuggestions.data
+              : [];
+          }
+
+          return [];
+        },
+        canSwitchShare() {
+          return this.getCurrentShareList().length > 1;
         },
         clearSavedDirs(task) {
           if (!Array.isArray(task.saved_dirs) || task.saved_dirs.length === 0) {
@@ -1876,13 +1911,24 @@
             this.setShareurlBan(task, urlIndex, "分享为空，文件已被分享者删除");
           });
         },
-        searchResources() {
-          const keyword = (this.resourceSearch.keyword || "").trim();
-          if (keyword.length < 2) {
-            this.showToast('请输入至少2个字符', 'warning');
+        searchResources(index = -1, taskname = "") {
+          const taskKeyword = String(taskname || "").trim();
+          const inputKeyword = String(this.resourceSearch.keyword || "").trim();
+          const keyword = taskKeyword || inputKeyword;
+          
+          if (keyword.length < 1) {
+            this.showToast('请输入至少1个字符', 'warning');
             return;
           }
-          this.resourceSearch.loading = true;
+
+          const isTaskSearch = taskKeyword.length > 0 && index !== -1;
+
+          if (isTaskSearch) {
+            this.smart_param.isSearching = true;
+            this.smart_param.index = index;
+          } else {
+            this.resourceSearch.loading = true;
+          }
           axios.get('/resource_search', {
             params: { q: keyword }
           }).then(response => {
@@ -1904,7 +1950,11 @@
             console.error('Error /resource_search:', error);
             this.showToast('搜索失败', 'error');
           }).finally(() => {
-            this.resourceSearch.loading = false;
+            if (isTaskSearch) {
+              this.smart_param.isSearching = false;
+            } else {
+              this.resourceSearch.loading = false;
+            }
           });
         },
         autoSelectTargetTaskByKeyword() {
@@ -2309,22 +2359,47 @@
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
         },
-        switchShare(index) {
-          currentIndex = this.smart_param.taskSuggestions.data.indexOf(this.fileSelect.share);
-          nextIndex = currentIndex + index;
+        switchShare(step) {
+          const shareList = this.getCurrentShareList();
+          if (!shareList.length) {
+            this.showToast("没有可切换的资源", "warning");
+            return;
+          }
+
+          const currentShareurl = String(this.fileSelect.shareurl || "").trim();
+          let currentIndex = shareList.findIndex(item => {
+            return String((item && item.shareurl) || "").trim() === currentShareurl;
+          });
+
+          // 兜底：如果 shareurl 没匹配上，再按对象引用找
+          if (currentIndex < 0) {
+            currentIndex = shareList.indexOf(this.fileSelect.share);
+          }
+
+          if (currentIndex < 0) {
+            currentIndex = 0;
+          }
+
+          const nextIndex = currentIndex + step;
+
           if (nextIndex < 0) {
             this.showToast("没有上一个啦", "info");
-          } else if (nextIndex >= this.smart_param.taskSuggestions.data.length) {
-            this.showToast("没有下一个啦", "info");
-          } else {
-            this.fileSelect.error = "";
-            this.fileSelect.stoken = "";
-            this.fileSelect.share = this.smart_param.taskSuggestions.data[nextIndex];
-            this.fileSelect.shareurl = this.smart_param.taskSuggestions.data[nextIndex].shareurl;
-            this.fileSelect.paths = [];
-            this.fileSelect.fileList = [];
-            this.getShareDetail();
+            return;
           }
+
+          if (nextIndex >= shareList.length) {
+            this.showToast("没有下一个啦", "info");
+            return;
+          }
+
+          const nextItem = shareList[nextIndex];
+          this.fileSelect.error = "";
+          this.fileSelect.stoken = "";
+          this.fileSelect.share = nextItem;
+          this.fileSelect.shareurl = nextItem.shareurl;
+          this.fileSelect.paths = [];
+          this.fileSelect.fileList = [];
+          this.getShareDetail();
         },
         navigateTo(fid, name) {
           dir = { fid: fid, name: name }
