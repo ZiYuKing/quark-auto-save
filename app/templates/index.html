@@ -1943,7 +1943,11 @@
             this.resourceSearch.activeTab = 'cloud';
             this.resetGyingSecondLayer();
             if (this.formData.tasklist.length > 0) {
-              this.resourceSearch.targetTaskIndex = isTaskSearch ? index : 0;
+              if (isTaskSearch && index >= 0 && index < this.formData.tasklist.length) {
+                this.resourceSearch.targetTaskIndex = index;
+              } else {
+                this.autoSelectTargetTaskByKeyword();
+              }
             }
             $('#resourceSearchModal').modal('show');
           }).catch(error => {
@@ -1995,7 +1999,6 @@
           this.fileSelect.stoken = "";
           this.fileSelect.index = this.formData.tasklist.length;
           this.fileSelect.urlIndex = 0;
-          // this.autoSelectTargetTaskByKeyword();
           $('#resourceSearchModal').modal('hide');
           $('#fileSelectModal').modal('show');
           this.getShareDetail();
