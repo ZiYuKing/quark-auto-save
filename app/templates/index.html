@@ -913,7 +913,6 @@
               <template v-else>
                 <div class="mb-2 d-flex align-items-center">
                   <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetButailingDetail()"><i class="bi bi-arrow-left"></i> &#x8FD4;&#x56DE;</button>
-                  <div class="ml-2 text-truncate"><b>{{ (resourceSearch.butailingDetail.info && resourceSearch.butailingDetail.info.title) || '&#x8BE6;&#x60C5;' }}</b></div>
                 </div>
                 <div class="text-muted mb-2" v-if="resourceSearch.butailingDetailLoading">&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x8BE6;&#x60C5;...</div>
                 <div class="text-danger mb-2" v-if="resourceSearch.butailingDetailError">{{ resourceSearch.butailingDetailError }}</div>
@@ -931,7 +930,7 @@
                     </div>
                   </div>
                   <ul class="nav nav-tabs mb-2">
-                    <li class="nav-item">
+                    <li class="nav-item" v-if="resourceSearch.butailingDetail.quark && resourceSearch.butailingDetail.quark.length">
                       <a href="#" class="nav-link" :class="{active: resourceSearch.butailingDetailTab === 'quark'}" @click.prevent="resourceSearch.butailingDetailTab = 'quark'">&#x5938;&#x514B;&#x7F51;&#x76D8;</a>
                     </li>
                     <li class="nav-item">
@@ -2215,6 +2214,7 @@
               magnets: Array.isArray(detail.magnets) ? detail.magnets : [],
               quark: Array.isArray(detail.quark) ? detail.quark : []
             };
+            this.resourceSearch.butailingDetailTab = this.resourceSearch.butailingDetail.quark.length ? 'quark' : 'magnet';
           }).catch(error => {
             console.error('Error /butailing_detail:', error);
             this.resourceSearch.butailingDetailError = 'Load detail failed';
