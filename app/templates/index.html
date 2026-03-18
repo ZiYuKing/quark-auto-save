@@ -950,7 +950,7 @@
                   </template>
                   <template v-else>
                     <div class="text-muted" v-if="!resourceSearch.butailingDetail.magnets || !resourceSearch.butailingDetail.magnets.length">&#x6682;&#x65E0;&#x78C1;&#x529B;&#x94FE;&#x63A5;</div>
-                    <div v-for="(m, mi) in (resourceSearch.butailingDetail.magnets || [])" :key="'magnet_'+mi" class="border rounded p-2 mb-1">
+                    <div v-for="(m, mi) in (resourceSearch.butailingDetail.magnets || [])" :key="'magnet_'+mi" class="border rounded p-2 mb-1 cursor-pointer" @click="openButailingSeedInfo(m)">
                       <div class="d-flex align-items-start justify-content-between">
                         <b class="mr-2">{{ m.zname || '-' }}</b>
                         <a v-if="buildButailingDownUrl(m.down)" :href="buildButailingDownUrl(m.down)" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a>
@@ -961,6 +961,50 @@
                   </template>
                 </template>
               </template>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框 不太灵种子文件信息 -->
+    <div class="modal" tabindex="-1" id="butailingSeedModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><b>&#x79CD;&#x5B50;&#x6587;&#x4EF6;&#x4FE1;&#x606F;</b></h5>
+            <button type="button" class="close" aria-label="Close" @click="backFromButailingSeedInfo()">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body small">
+            <div class="mb-2 d-flex align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="backFromButailingSeedInfo()"><i class="bi bi-arrow-left"></i> &#x8FD4;&#x56DE;</button>
+            </div>
+            <div class="d-flex align-items-center text-muted mb-2" v-if="resourceSearch.butailingSeed.loading">
+              <div class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></div>
+              <span>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x79CD;&#x5B50;&#x6587;&#x4EF6;&#x4FE1;&#x606F;...</span>
+            </div>
+            <div class="text-danger mb-2" v-if="resourceSearch.butailingSeed.error">{{ resourceSearch.butailingSeed.error }}</div>
+            <template v-if="!resourceSearch.butailingSeed.loading && !resourceSearch.butailingSeed.error">
+              <div class="border rounded p-2 mb-2" v-if="resourceSearch.butailingSeed.meta && resourceSearch.butailingSeed.meta.zname">
+                <div><b>{{ resourceSearch.butailingSeed.meta.zname }}</b></div>
+                <div class="mt-2">
+                  <span class="badge badge-primary mr-2" v-if="resourceSearch.butailingSeed.meta.zsizea">{{ resourceSearch.butailingSeed.meta.zsizea }}</span>
+                  <span class="badge badge-info mr-2" v-if="resourceSearch.butailingSeed.meta.zqxd">{{ resourceSearch.butailingSeed.meta.zqxd }}</span>
+                  <a v-if="resourceSearch.butailingSeed.meta.zlink" :href="resourceSearch.butailingSeed.meta.zlink" target="_blank" class="btn btn-sm btn-outline-primary mr-2" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
+                  <a v-if="buildButailingDownUrl(resourceSearch.butailingSeed.meta.down)" :href="buildButailingDownUrl(resourceSearch.butailingSeed.meta.down)" target="_blank" class="btn btn-sm btn-outline-success" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a>
+                </div>
+              </div>
+              <div class="border rounded p-2">
+                <div><b>&#x79CD;&#x5B50;&#x6587;&#x4EF6;&#x4FE1;&#x606F;</b></div>
+                <div class="text-muted mt-2" v-if="!resourceSearch.butailingSeed.files.length">&#x6682;&#x65E0;&#x6587;&#x4EF6;&#x4FE1;&#x606F;</div>
+                <div class="mt-2" style="max-height:420px;overflow:auto;">
+                  <div v-for="(f, fi) in resourceSearch.butailingSeed.files" :key="'seed_file_'+fi" class="small text-break mb-1">
+                    {{ f.efname || '-' }}
+                  </div>
+                </div>
+              </div>
             </template>
           </div>
         </div>
@@ -1139,7 +1183,13 @@
           butailingDetailError: "",
           butailingDetail: null,
           butailingDetailTab: "quark",
-          targetTaskIndex: 0
+          targetTaskIndex: 0,
+          butailingSeed: {
+            loading: false,
+            error: "",
+            meta: null,
+            files: []
+          }
         },
         fileSelect: {
           index: null,
@@ -1218,7 +1268,7 @@
         this.checkNewVersion();
         $('[data-toggle="tooltip"]').tooltip();
         // 把所有弹窗挂到 body 下，避免被自定义层叠上下文压在 backdrop 下方
-        ['#logModal', '#fileSelectModal', '#resourceSearchModal', '#missingEpisodesModal', '#savedDirEpisodeModal']
+        ['#logModal', '#fileSelectModal', '#resourceSearchModal', '#butailingSeedModal', '#missingEpisodesModal', '#savedDirEpisodeModal']
           .forEach(sel => {
             const modalEl = document.querySelector(sel);
             if (modalEl && modalEl.parentElement !== document.body) {
@@ -2190,11 +2240,52 @@
             this.resourceSearch.gyingSecondLoading = false;
           });
         },
+        resetButailingSeed() {
+          this.resourceSearch.butailingSeed.loading = false;
+          this.resourceSearch.butailingSeed.error = "";
+          this.resourceSearch.butailingSeed.meta = null;
+          this.resourceSearch.butailingSeed.files = [];
+        },
         resetButailingDetail() {
           this.resourceSearch.butailingDetailLoading = false;
           this.resourceSearch.butailingDetailError = "";
           this.resourceSearch.butailingDetail = null;
           this.resourceSearch.butailingDetailTab = "quark";
+          this.resetButailingSeed();
+        },
+        openButailingSeedInfo(row) {
+          const seedId = Number(row && row.id);
+          this.resetButailingSeed();
+          this.resourceSearch.butailingSeed.loading = true;
+          $('#resourceSearchModal').modal('hide');
+          $('#butailingSeedModal').modal('show');
+
+          if (!Number.isFinite(seedId) || seedId <= 0) {
+            this.resourceSearch.butailingSeed.loading = false;
+            this.resourceSearch.butailingSeed.error = 'Load seed detail failed';
+            return;
+          }
+
+          axios.post('/butailing_tr_detail', {
+            seed_id: seedId
+          }).then(response => {
+            if (!response.data.success) {
+              this.resourceSearch.butailingSeed.error = response.data.message || 'Load seed detail failed';
+              return;
+            }
+            const data = response.data.data || {};
+            this.resourceSearch.butailingSeed.meta = data.meta || null;
+            this.resourceSearch.butailingSeed.files = Array.isArray(data.files) ? data.files : [];
+          }).catch(error => {
+            console.error('Error /butailing_tr_detail:', error);
+            this.resourceSearch.butailingSeed.error = 'Load seed detail failed';
+          }).finally(() => {
+            this.resourceSearch.butailingSeed.loading = false;
+          });
+        },
+        backFromButailingSeedInfo() {
+          $('#butailingSeedModal').modal('hide');
+          $('#resourceSearchModal').modal('show');
         },
         openButailingDetail(item) {
           const doubId = Number(item && item.doub_id);

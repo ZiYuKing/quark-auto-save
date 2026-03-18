@@ -622,6 +622,7 @@ def butailing_detail():
                 continue
             magnets.append(
                 {
+                    "id": row.get("id"),
                     "zname": row.get("zname", ""),
                     "zsize": row.get("zsize", ""),
                     "zqxd": row.get("zqxd", ""),
@@ -653,6 +654,91 @@ def butailing_detail():
             },
             "magnets": magnets,
             "quark": quark,
+        }
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e), "data": {}})
+
+
+
+
+@app.route("/butailing_tr_detail", methods=["POST"])
+def butailing_tr_detail():
+    if not is_login():
+        return jsonify({"success": False, "message": "unauthorized"})
+
+    payload = request.get_json(silent=True) or {}
+    seed_id = payload.get("seed_id")
+    try:
+        seed_id_int = int(seed_id)
+    except Exception:
+        seed_id_int = 0
+    if seed_id_int <= 0:
+        return jsonify({"success": False, "message": "seed_id is required", "data": {}})
+
+    bt_data = config_data.get("source", {}).get("butailing", {})
+    app_id = str(bt_data.get("app_id", "")).strip()
+    identity = str(bt_data.get("identity", "")).strip()
+    access_token = str(bt_data.get("access_token", "")).strip()
+    if not (app_id and identity and access_token):
+        return jsonify(
+            {
+                "success": False,
+                "message": "butailing app_id/identity/access_token is required",
+                "data": {},
+            }
+        )
+
+    base_url = (
+        str(bt_data.get("url", "")).strip().rstrip("/") or "https://web5.mukaku.com"
+    )
+    url = f"{base_url}/prod/api/v1/getTrDetail"
+    headers = {
+        "authorization": f"Bearer {access_token}",
+        "content-type": "application/json;charset=UTF-8",
+        "accept": "*/*",
+    }
+    params = {
+        "id": seed_id_int,
+        "app_id": app_id,
+        "identity": identity,
+        "access_token": access_token,
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=20)
+        response.raise_for_status()
+        body = response.json()
+        if not body.get("success"):
+            return jsonify(
+                {
+                    "success": False,
+                    "message": body.get("message") or "fetch tr detail failed",
+                    "data": {},
+                }
+            )
+
+        detail = body.get("data") or {}
+        zfiles = detail.get("zfiles") or []
+        files = []
+        for row in zfiles:
+            files.append(
+                {
+                    "efname": row.get("efname", ""),
+                    "ezsize": row.get("ezsize", ""),
+                    "ezsn": row.get("ezsn", ""),
+                }
+            )
+
+        data = {
+            "meta": {
+                "zname": detail.get("zname", ""),
+                "zsizea": detail.get("zsizea", ""),
+                "zqxd": detail.get("zqxd", ""),
+                "zlink": detail.get("zlink", ""),
+                "down": detail.get("down", ""),
+            },
+            "files": files,
         }
         return jsonify({"success": True, "data": data})
     except Exception as e:
