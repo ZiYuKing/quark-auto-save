@@ -378,12 +378,13 @@ def resource_search():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").strip().lower()
     if len(query) < 2:
-        return jsonify({"success": True, "data": []})
+        return jsonify({"success": True, "data": [], "gying": []})
 
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
     gy_data = config_data.get("source", {}).get("gying", {})
     cs_debug_stats = {"raw_count": 0, "quark_filtered_count": 0}
+    source_errors = {}
 
     def cs_search():
         if (
@@ -437,20 +438,28 @@ def resource_search():
     try:
         search_results = []
         gy_results = []
+
         with ThreadPoolExecutor(max_workers=3) as executor:
-            features = {
+            futures = {
                 executor.submit(cs_search): "cs",
                 executor.submit(ps_search): "ps",
                 executor.submit(gy_search): "gy",
             }
-            for future in as_completed(features):
-                result = future.result()
-                if features[future] == "gy":
-                    gy_results.extend(result)
-                else:
-                    search_results.extend(result)
+
+            for future in as_completed(futures):
+                source = futures[future]
+                try:
+                    result = future.result() or []
+                    if source == "gy":
+                        gy_results.extend(result)
+                    else:
+                        search_results.extend(result)
+                except Exception as e:
+                    source_errors[source] = str(e)
+                    print(f"[resource_search] {source} search failed: {e}")
 
         search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
+
         results = []
         link_array = []
         for item in search_results:
@@ -458,14 +467,33 @@ def resource_search():
             if url and url not in link_array:
                 link_array.append(url)
                 results.append(item)
+
         cs_in_dedup_count = sum(
             1 for item in results if item.get("source") == "CloudSaver"
         )
+
         sys.stdout.flush()
-        # 向后兼容前端：data 仍返回数组，额外携带 gying 结果供后续升级前端使用
-        return jsonify({"success": True, "data": results, "gying": gy_results})
+
+        response = {
+            "success": True,
+            "data": results,
+            "gying": gy_results,
+        }
+
+        # 可选：把错误带回前端，方便调试
+        if source_errors:
+            response["partial_failed"] = True
+            response["errors"] = source_errors
+
+        return jsonify(response)
+
     except Exception as e:
-        return jsonify({"success": False, "message": str(e), "data": [], "gying": []})
+        return jsonify({
+            "success": False,
+            "message": str(e),
+            "data": [],
+            "gying": []
+        })
 
 
 @app.route("/gying_second_layer", methods=["POST"])
