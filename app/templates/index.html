@@ -24,6 +24,71 @@
   <script src="./static/js/axios.min.js"></script>
   <script src="./static/js/v-jsoneditor.min.js"></script>
   <script src="/static/js/pwa-register.js"></script>
+  <style>
+    /* 兼容浏览器插件向磁力链接后自动插入按钮，避免挤乱卡片布局 */
+    #resourceSearchModal .tk-action-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+    #resourceSearchModal .tk-magnet-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+    #resourceSearchModal .tk-magnet-anchor {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+    }
+    #resourceSearchModal .tk-action-wrap > *,
+    #resourceSearchModal .tk-magnet-row > * {
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+        #resourceSearchModal .bt-action-wrap,
+    #butailingSeedModal .bt-action-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+    #resourceSearchModal .bt-link-row,
+    #butailingSeedModal .bt-link-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+    #resourceSearchModal .bt-link-anchor,
+    #butailingSeedModal .bt-link-anchor {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+    }
+    #resourceSearchModal .bt-action-wrap > *,
+    #butailingSeedModal .bt-action-wrap > *,
+    #resourceSearchModal .bt-link-row > *,
+    #butailingSeedModal .bt-link-row > * {
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+    @media (max-width: 576px) {
+      #resourceSearchModal .tk-action-wrap,
+      #resourceSearchModal .bt-action-wrap,
+      #butailingSeedModal .bt-action-wrap {
+        justify-content: flex-start;
+      }
+    }
+  </style>
 </head>
 
 <body>
@@ -971,10 +1036,10 @@
                     <div v-for="(m, mi) in (resourceSearch.butailingDetail.magnets || [])" :key="'magnet_'+mi" class="border rounded p-2 mb-1 cursor-pointer" @click="openButailingSeedInfo(m)">
                       <div class="d-flex align-items-start justify-content-between">
                         <b class="mr-2">{{ m.zname || '-' }}</b>
-                        <a v-if="buildButailingDownUrl(m.down)" :href="buildButailingDownUrl(m.down)" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a>
+                        <div class="bt-action-wrap"><a v-if="buildButailingDownUrl(m.down)" :href="buildButailingDownUrl(m.down)" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a></div>
                       </div>
                       <div class="text-muted small">{{ m.zsize || '-' }} &middot; {{ m.zqxd || '-' }} &middot; {{ m.ezt || '-' }}</div>
-                      <div class="text-break small"><a :href="m.zlink" target="_blank" @click.stop>{{ m.zlink }}</a></div>
+                      <div class="text-break small bt-link-row"><a class="bt-link-anchor" :href="m.zlink" target="_blank" @click.stop>{{ m.zlink }}</a></div>
                     </div>
                   </template>
                 </template>
@@ -986,10 +1051,10 @@
                 <div v-for="(item, idx) in resourceSearch.resultsTorrentkitty" :key="'torrentkitty_'+idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openTorrentkittyDetail(item)">
                   <div class="d-flex align-items-start justify-content-between">
                     <b class="mr-2 text-break">{{ item.title || item.taskname || '-' }}</b>
-                    <a v-if="item.magnet" :href="item.magnet" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
+                    <div class="tk-action-wrap"><a v-if="item.magnet" :href="item.magnet" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a></div>
                   </div>
                   <div class="text-muted small">{{ item.size || '-' }} &middot; {{ item.datetime || '-' }}</div>
-                  <div class="text-break small" v-if="item.magnet"><a :href="item.magnet" target="_blank" @click.stop>{{ getMagnetDisplay(item.magnet) }}</a></div>
+                  <div class="text-break small tk-magnet-row" v-if="item.magnet"><a class="tk-magnet-anchor" :href="item.magnet" target="_blank" @click.stop>{{ getMagnetDisplay(item.magnet) }}</a></div>
                 </div>
               </template>
               <template v-else>
@@ -1010,8 +1075,8 @@
                   </div>
                   <div class="border rounded p-2 mb-2">
                     <div><b>&#x78C1;&#x529B;&#x94FE;&#x63A5;</b></div>
-                    <div class="text-break small mt-1" v-if="resourceSearch.torrentkittyDetail.magnet">
-                      <a :href="resourceSearch.torrentkittyDetail.magnet" target="_blank">{{ getMagnetDisplay(resourceSearch.torrentkittyDetail.magnet) }}</a>
+                    <div class="text-break small mt-1 tk-magnet-row" v-if="resourceSearch.torrentkittyDetail.magnet">
+                      <a class="tk-magnet-anchor" :href="resourceSearch.torrentkittyDetail.magnet" target="_blank">{{ getMagnetDisplay(resourceSearch.torrentkittyDetail.magnet) }}</a>
                     </div>
                     <div class="text-muted small mt-1" v-else>&#x6682;&#x65E0;&#x78C1;&#x529B;&#x94FE;&#x63A5;</div>
                   </div>
@@ -1066,10 +1131,10 @@
             <template v-if="!resourceSearch.butailingSeed.loading && !resourceSearch.butailingSeed.error">
               <div class="border rounded p-2 mb-2" v-if="resourceSearch.butailingSeed.meta && resourceSearch.butailingSeed.meta.zname">
                 <div><b>{{ resourceSearch.butailingSeed.meta.zname }}</b></div>
-                <div class="mt-2">
+                <div class="mt-2 bt-action-wrap">
                   <span class="badge badge-primary mr-2" v-if="resourceSearch.butailingSeed.meta.zsizea">{{ resourceSearch.butailingSeed.meta.zsizea }}</span>
                   <span class="badge badge-info mr-2" v-if="resourceSearch.butailingSeed.meta.zqxd">{{ resourceSearch.butailingSeed.meta.zqxd }}</span>
-                  <a v-if="resourceSearch.butailingSeed.meta.zlink" :href="resourceSearch.butailingSeed.meta.zlink" target="_blank" class="btn btn-sm btn-outline-primary mr-2" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
+                  <a v-if="resourceSearch.butailingSeed.meta.zlink" :href="resourceSearch.butailingSeed.meta.zlink" target="_blank" class="btn btn-sm btn-outline-primary" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
                   <a v-if="buildButailingDownUrl(resourceSearch.butailingSeed.meta.down)" :href="buildButailingDownUrl(resourceSearch.butailingSeed.meta.down)" target="_blank" class="btn btn-sm btn-outline-success" @click.stop>&#x4E0B;&#x8F7D;&#x79CD;&#x5B50;</a>
                 </div>
               </div>
@@ -3046,6 +3111,11 @@
 </body>
 
 </html>
+
+
+
+
+
 
 
 
