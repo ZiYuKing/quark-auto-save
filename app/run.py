@@ -29,6 +29,8 @@ import base64
 import sys
 import os
 import re
+import html
+from urllib.parse import quote, urljoin
 from natsort import natsorted
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -62,6 +64,74 @@ def strip_known_ext(name):
     if ext.lower() in KNOWN_MEDIA_EXTS:
         return root
     return text
+
+def _strip_html_tags(fragment):
+    text = str(fragment or "")
+    text = re.sub(r"<[^>]+>", "", text, flags=re.S)
+    return html.unescape(" ".join(text.split()))
+
+
+def _extract_table_cell(row_html, class_name):
+    match = re.search(
+        rf'<td[^>]*class=["\'][^"\']*\b{class_name}\b[^"\']*["\'][^>]*>(.*?)</td>',
+        row_html,
+        flags=re.I | re.S,
+    )
+    return match.group(1) if match else ""
+
+
+def parse_torrentkitty_results(page_html, page_url):
+    table_match = re.search(
+        r'<table[^>]*id=["\']archiveResult["\'][^>]*>(.*?)</table>',
+        page_html or "",
+        flags=re.I | re.S,
+    )
+    if not table_match:
+        return []
+
+    results = []
+    for row_html in re.findall(
+        r"<tr\b[^>]*>(.*?)</tr>", table_match.group(1), flags=re.I | re.S
+    ):
+        if re.search(r"<th\b", row_html, flags=re.I):
+            continue
+
+        taskname = _strip_html_tags(_extract_table_cell(row_html, "name"))
+        size = _strip_html_tags(_extract_table_cell(row_html, "size"))
+        date_text = _strip_html_tags(_extract_table_cell(row_html, "date"))
+
+        magnet = ""
+        detail_url = ""
+        for anchor_tag in re.findall(r"<a\b[^>]*>", row_html, flags=re.I | re.S):
+            href_match = re.search(r'href=["\']([^"\']+)["\']', anchor_tag, flags=re.I)
+            if not href_match:
+                continue
+            href = html.unescape(href_match.group(1).strip())
+            if not href:
+                continue
+            if (not magnet) and re.search(r'rel=["\']magnet["\']', anchor_tag, flags=re.I):
+                magnet = href
+                continue
+            if (not detail_url) and re.search(r'rel=["\']information["\']', anchor_tag, flags=re.I):
+                detail_url = href
+
+        if not magnet:
+            continue
+        if detail_url:
+            detail_url = urljoin(page_url, detail_url)
+
+        results.append(
+            {
+                "source": "TORRENTKITTY",
+                "taskname": taskname,
+                "title": taskname,
+                "size": size,
+                "datetime": date_text,
+                "magnet": magnet,
+                "detail_url": detail_url,
+            }
+        )
+    return results
 
 print(
     r"""
@@ -378,12 +448,21 @@ def resource_search():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").strip().lower()
     if len(query) < 1:
-        return jsonify({"success": True, "data": [], "gying": [], "butailing": []})
+        return jsonify(
+            {
+                "success": True,
+                "data": [],
+                "gying": [],
+                "butailing": [],
+                "torrentkitty": [],
+            }
+        )
 
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
     gy_data = config_data.get("source", {}).get("gying", {})
     bt_data = config_data.get("source", {}).get("butailing", {})
+    tk_data = config_data.get("source", {}).get("torrentkitty", {})
     cs_debug_stats = {"raw_count": 0, "quark_filtered_count": 0}
     source_errors = {}
 
@@ -465,7 +544,7 @@ def resource_search():
         response.raise_for_status()
         body = response.json()
         if not body.get("success"):
-            raise ValueError(body.get("message") or "???????")
+            raise ValueError(body.get("message") or "fetch butailing list failed")
 
         rows = (((body or {}).get("data") or {}).get("data") or [])
         results = []
@@ -495,10 +574,54 @@ def resource_search():
             )
         return results
 
+    def tk_search():
+        base_url = str(tk_data.get("url", "")).strip().rstrip("/")
+        if not base_url:
+            return []
+
+        encoded_query = quote(query, safe="")
+        if not encoded_query:
+            return []
+
+        results = []
+        seen_magnets = set()
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
+
+        for page in range(1, 6):
+            if page == 1:
+                page_url = f"{base_url}/search/{encoded_query}/"
+            else:
+                page_url = f"{base_url}/search/{encoded_query}/{page}"
+
+            response = requests.get(page_url, headers=headers, timeout=20)
+            response.raise_for_status()
+
+            page_rows = parse_torrentkitty_results(response.text, page_url)
+            if not page_rows:
+                break
+
+            new_count = 0
+            for row in page_rows:
+                magnet = str(row.get("magnet", "")).strip()
+                if magnet and magnet in seen_magnets:
+                    continue
+                if magnet:
+                    seen_magnets.add(magnet)
+                results.append(row)
+                new_count += 1
+
+            if new_count == 0:
+                break
+
+        return results
+
     try:
         search_results = []
         gy_results = []
         bt_results = []
+        tk_results = []
 
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = {
@@ -506,6 +629,7 @@ def resource_search():
                 executor.submit(ps_search): "ps",
                 executor.submit(gy_search): "gy",
                 executor.submit(bt_search): "bt",
+                executor.submit(tk_search): "tk",
             }
 
             for future in as_completed(futures):
@@ -516,6 +640,8 @@ def resource_search():
                         gy_results.extend(result)
                     elif source == "bt":
                         bt_results.extend(result)
+                    elif source == "tk":
+                        tk_results.extend(result)
                     else:
                         search_results.extend(result)
                 except Exception as e:
@@ -543,6 +669,7 @@ def resource_search():
             "data": results,
             "gying": gy_results,
             "butailing": bt_results,
+            "torrentkitty": tk_results,
         }
 
         # 可选：把错误带回前端，方便调试
@@ -553,13 +680,16 @@ def resource_search():
         return jsonify(response)
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": str(e),
-            "data": [],
-            "gying": [],
-            "butailing": []
-        })
+        return jsonify(
+            {
+                "success": False,
+                "message": str(e),
+                "data": [],
+                "gying": [],
+                "butailing": [],
+                "torrentkitty": [],
+            }
+        )
 
 
 @app.route("/butailing_detail", methods=["POST"])
@@ -1227,6 +1357,8 @@ def init():
     config_data["source"]["butailing"].setdefault("app_id", "")
     config_data["source"]["butailing"].setdefault("identity", "")
     config_data["source"]["butailing"].setdefault("access_token", "")
+    config_data["source"].setdefault("torrentkitty", {})
+    config_data["source"]["torrentkitty"].setdefault("url", "")
 
     # 默认管理账号
     config_data["webui"] = {
@@ -1265,3 +1397,13 @@ if __name__ == "__main__":
         host=HOST,
         port=PORT,
     )
+
+
+
+
+
+
+
+
+
+
