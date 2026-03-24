@@ -448,6 +448,7 @@
                       <i v-if="resourceSearch.loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                       <i v-else class="bi bi-search"></i>
                     </button>
+                    <button type="button" class="btn btn-outline-info" title="打开上次搜索结果" @click="openResourceSearchHistory()"><i class="bi bi-clock-history"></i></button>
                     <button type="button" class="btn btn-outline-secondary" @click="clearData('resourceSearchKeyword')"><i class="bi bi-x-lg"></i></button>
                   </div>
                 </div>
@@ -1340,6 +1341,7 @@
           torrentkittyDetailError: "",
           torrentkittyDetail: null
         },
+        resourceSearchHistory: null,
         fileSelect: {
           index: null,
           targetField: "savepath",
@@ -1446,15 +1448,76 @@
           .on('hidden.bs.modal.injectfix', () => {
             this.stopButailingSeedModalObserver();
           });
+        $('#resourceSearchModal')
+          .on('hidden.bs.modal.history', () => {
+            this.captureResourceSearchHistory();
+          });
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
         $('#butailingSeedModal').off('.injectfix');
+        $('#resourceSearchModal').off('.history');
         this.stopButailingSeedModalObserver();
       },
       methods: {
         deepClone(obj) {
           return JSON.parse(JSON.stringify(obj));
+        },
+        hasResourceSearchResults(searchState = null) {
+          const rs = searchState || this.resourceSearch;
+          if (!rs) {
+            return false;
+          }
+          const hasPrimaryResults = [
+            rs.resultsCloud,
+            rs.resultsGying,
+            rs.resultsButailing,
+            rs.resultsTorrentkitty
+          ].some(list => Array.isArray(list) && list.length > 0);
+          const hasSecondLayerResults = Array.isArray(rs.resultsGyingSecond) && rs.resultsGyingSecond.length > 0;
+          const hasButailingDetail = !!(rs.butailingDetail && (
+            (Array.isArray(rs.butailingDetail.quark) && rs.butailingDetail.quark.length > 0) ||
+            (Array.isArray(rs.butailingDetail.magnets) && rs.butailingDetail.magnets.length > 0)
+          ));
+          const hasTorrentkittyDetail = !!(rs.torrentkittyDetail && (
+            (Array.isArray(rs.torrentkittyDetail.files) && rs.torrentkittyDetail.files.length > 0) ||
+            String(rs.torrentkittyDetail.magnet || "").trim()
+          ));
+          return hasPrimaryResults || hasSecondLayerResults || hasButailingDetail || hasTorrentkittyDetail;
+        },
+        captureResourceSearchHistory() {
+          if (!this.hasResourceSearchResults(this.resourceSearch)) {
+            this.resourceSearchHistory = null;
+            return;
+          }
+          const snapshot = this.deepClone(this.resourceSearch);
+          snapshot.loading = false;
+          snapshot.gyingSecondLoading = false;
+          snapshot.butailingDetailLoading = false;
+          snapshot.torrentkittyDetailLoading = false;
+          if (snapshot.butailingSeed) {
+            snapshot.butailingSeed.loading = false;
+          }
+          this.resourceSearchHistory = snapshot;
+        },
+        openResourceSearchHistory() {
+          if (!this.resourceSearchHistory || !this.hasResourceSearchResults(this.resourceSearchHistory)) {
+            this.showToast('暂无可恢复的搜索结果', 'info');
+            return;
+          }
+          const snapshot = this.deepClone(this.resourceSearchHistory);
+          snapshot.loading = false;
+          snapshot.gyingSecondLoading = false;
+          snapshot.butailingDetailLoading = false;
+          snapshot.torrentkittyDetailLoading = false;
+          if (snapshot.butailingSeed) {
+            snapshot.butailingSeed.loading = false;
+          }
+          const taskCount = Array.isArray(this.formData.tasklist) ? this.formData.tasklist.length : 0;
+          const targetTaskIndex = Number(snapshot.targetTaskIndex);
+          snapshot.targetTaskIndex = (taskCount > 0 && targetTaskIndex >= 0 && targetTaskIndex < taskCount) ? targetTaskIndex : 0;
+          this.resourceSearch = snapshot;
+          $('#resourceSearchModal').modal('show');
         },
         cleanupButailingInjectedElements(rootEl = null) {
           const modalEl = rootEl || document.getElementById('butailingSeedModal');
@@ -3189,6 +3252,9 @@
 </body>
 
 </html>
+
+
+
 
 
 
