@@ -981,18 +981,63 @@
               </template>
             </template>
             <template v-else>
-              <div class="text-muted mb-2" v-if="!resourceSearch.resultsTorrentkitty.length">没有搜索到结果</div>
-              <div v-for="(item, idx) in resourceSearch.resultsTorrentkitty" :key="'torrentkitty_'+idx" class="border rounded p-2 mb-2">
-                <div class="d-flex align-items-start justify-content-between">
-                  <b class="mr-2 text-break">{{ item.title || item.taskname || '-' }}</b>
-                  <a v-if="item.magnet" :href="item.magnet" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0">磁力链接</a>
+              <template v-if="!resourceSearch.torrentkittyDetail">
+                <div class="text-muted mb-2" v-if="!resourceSearch.resultsTorrentkitty.length">&#x6CA1;&#x6709;&#x641C;&#x7D22;&#x5230;&#x7ED3;&#x679C;</div>
+                <div v-for="(item, idx) in resourceSearch.resultsTorrentkitty" :key="'torrentkitty_'+idx" class="border rounded p-2 mb-2 cursor-pointer" @click="openTorrentkittyDetail(item)">
+                  <div class="d-flex align-items-start justify-content-between">
+                    <b class="mr-2 text-break">{{ item.title || item.taskname || '-' }}</b>
+                    <a v-if="item.magnet" :href="item.magnet" target="_blank" class="btn btn-sm btn-outline-primary flex-shrink-0" @click.stop>&#x78C1;&#x529B;&#x94FE;&#x63A5;</a>
+                  </div>
+                  <div class="text-muted small">{{ item.size || '-' }} &middot; {{ item.datetime || '-' }}</div>
+                  <div class="text-break small" v-if="item.magnet"><a :href="item.magnet" target="_blank" @click.stop>{{ getMagnetDisplay(item.magnet) }}</a></div>
                 </div>
-                <div class="text-muted small">{{ item.size || '-' }} &middot; {{ item.datetime || '-' }}</div>
-                <div class="text-break small" v-if="item.magnet"><a :href="item.magnet" target="_blank">{{ getMagnetDisplay(item.magnet) }}</a></div>
-                <div class="text-break small mt-1" v-if="item.detail_url">
-                  <a :href="item.detail_url" target="_blank">详情页</a>
+              </template>
+              <template v-else>
+                <div class="mb-2 d-flex align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" @click="backFromTorrentkittyDetail()"><i class="bi bi-arrow-left"></i> &#x8FD4;&#x56DE;</button>
                 </div>
-              </div>
+                <div class="d-flex align-items-center text-muted mb-2" v-if="resourceSearch.torrentkittyDetailLoading">
+                  <div class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></div>
+                  <span>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x78C1;&#x529B;&#x8BE6;&#x60C5;...</span>
+                </div>
+                <div class="text-danger mb-2" v-if="resourceSearch.torrentkittyDetailError">{{ resourceSearch.torrentkittyDetailError }}</div>
+                <template v-if="!resourceSearch.torrentkittyDetailLoading && !resourceSearch.torrentkittyDetailError && resourceSearch.torrentkittyDetail">
+                  <div class="border rounded p-2 mb-2">
+                    <div><b>{{ resourceSearch.torrentkittyDetail.title || (resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.title) || '-' }}</b></div>
+                    <div class="text-break small mt-1" v-if="resourceSearch.torrentkittyDetail.detail_url">
+                      <a :href="resourceSearch.torrentkittyDetail.detail_url" target="_blank" @click.stop>&#x6765;&#x6E90;&#x9875;&#x9762;</a>
+                    </div>
+                  </div>
+                  <div class="border rounded p-2 mb-2">
+                    <div><b>&#x78C1;&#x529B;&#x94FE;&#x63A5;</b></div>
+                    <div class="text-break small mt-1" v-if="resourceSearch.torrentkittyDetail.magnet">
+                      <a :href="resourceSearch.torrentkittyDetail.magnet" target="_blank">{{ getMagnetDisplay(resourceSearch.torrentkittyDetail.magnet) }}</a>
+                    </div>
+                    <div class="text-muted small mt-1" v-else>&#x6682;&#x65E0;&#x78C1;&#x529B;&#x94FE;&#x63A5;</div>
+                  </div>
+                  <div class="border rounded p-2 mb-2">
+                    <div><b>&#x8BE6;&#x60C5;&#x4FE1;&#x606F;</b></div>
+                    <div class="small mt-2" v-if="resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.torrent_hash"><b>Hash:</b> {{ resourceSearch.torrentkittyDetail.info.torrent_hash }}</div>
+                    <div class="small" v-if="resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.number_of_files"><b>&#x6587;&#x4EF6;&#x6570;:</b> {{ resourceSearch.torrentkittyDetail.info.number_of_files }}</div>
+                    <div class="small" v-if="resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.content_size"><b>&#x5185;&#x5BB9;&#x5927;&#x5C0F;:</b> {{ resourceSearch.torrentkittyDetail.info.content_size }}</div>
+                    <div class="small" v-if="resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.created_on"><b>&#x521B;&#x5EFA;&#x65F6;&#x95F4;:</b> {{ resourceSearch.torrentkittyDetail.info.created_on }}</div>
+                    <div class="small mt-1" v-if="resourceSearch.torrentkittyDetail.info && resourceSearch.torrentkittyDetail.info.keywords && resourceSearch.torrentkittyDetail.info.keywords.length">
+                      <b>&#x5173;&#x952E;&#x8BCD;:</b>
+                      <span v-for="(kw, ki) in resourceSearch.torrentkittyDetail.info.keywords" :key="'tk_kw_'+ki" class="badge badge-light border mr-1">{{ kw }}</span>
+                    </div>
+                  </div>
+                  <div class="border rounded p-2">
+                    <div><b>&#x79CD;&#x5B50;&#x6587;&#x4EF6;&#x4FE1;&#x606F;</b></div>
+                    <div class="text-muted mt-2" v-if="!(resourceSearch.torrentkittyDetail.files || []).length">&#x6682;&#x65E0;&#x6587;&#x4EF6;&#x4FE1;&#x606F;</div>
+                    <div class="mt-2" style="max-height:280px;overflow:auto;" v-else>
+                      <div v-for="(f, fi) in (resourceSearch.torrentkittyDetail.files || [])" :key="'tk_file_'+fi" class="small text-break mb-1 d-flex justify-content-between">
+                        <span class="mr-2">{{ f.name || '-' }}</span>
+                        <span class="text-muted">{{ f.size || '-' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </template>
             </template>
           </div>
         </div>
@@ -1225,7 +1270,10 @@
             error: "",
             meta: null,
             files: []
-          }
+          },
+          torrentkittyDetailLoading: false,
+          torrentkittyDetailError: "",
+          torrentkittyDetail: null
         },
         fileSelect: {
           index: null,
@@ -2181,6 +2229,7 @@
             this.resourceSearch.activeTab = 'cloud';
             this.resetGyingSecondLayer();
             this.resetButailingDetail();
+            this.resetTorrentkittyDetail();
             if (this.formData.tasklist.length > 0) {
               if (isTaskSearch && index >= 0 && index < this.formData.tasklist.length) {
                 this.resourceSearch.targetTaskIndex = index;
@@ -2295,6 +2344,54 @@
           this.resourceSearch.butailingDetail = null;
           this.resourceSearch.butailingDetailTab = "quark";
           this.resetButailingSeed();
+        },
+        resetTorrentkittyDetail() {
+          this.resourceSearch.torrentkittyDetailLoading = false;
+          this.resourceSearch.torrentkittyDetailError = "";
+          this.resourceSearch.torrentkittyDetail = null;
+        },
+        backFromTorrentkittyDetail() {
+          this.resetTorrentkittyDetail();
+        },
+        openTorrentkittyDetail(item) {
+          const detailUrl = String((item && item.detail_url) || "").trim();
+          this.resourceSearch.torrentkittyDetailLoading = true;
+          this.resourceSearch.torrentkittyDetailError = "";
+          this.resourceSearch.torrentkittyDetail = {
+            title: (item && (item.title || item.taskname)) || "",
+            detail_url: detailUrl,
+            magnet: String((item && item.magnet) || "").trim(),
+            info: {},
+            files: []
+          };
+
+          if (!detailUrl) {
+            this.resourceSearch.torrentkittyDetailLoading = false;
+            this.resourceSearch.torrentkittyDetailError = 'Load detail failed';
+            return;
+          }
+
+          axios.post('/torrentkitty_detail', {
+            detail_url: detailUrl
+          }).then(response => {
+            if (!response.data.success) {
+              this.resourceSearch.torrentkittyDetailError = response.data.message || 'Load detail failed';
+              return;
+            }
+            const detail = response.data.data || {};
+            this.resourceSearch.torrentkittyDetail = {
+              title: detail.title || (item && (item.title || item.taskname)) || "",
+              detail_url: detail.detail_url || detailUrl,
+              magnet: String(detail.magnet || (item && item.magnet) || "").trim(),
+              info: detail.info || {},
+              files: Array.isArray(detail.files) ? detail.files : []
+            };
+          }).catch(error => {
+            console.error('Error /torrentkitty_detail:', error);
+            this.resourceSearch.torrentkittyDetailError = 'Load detail failed';
+          }).finally(() => {
+            this.resourceSearch.torrentkittyDetailLoading = false;
+          });
         },
         openButailingSeedInfo(row) {
           const seedId = Number(row && row.id);
@@ -2949,6 +3046,13 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
 
 
 

@@ -30,7 +30,7 @@ import sys
 import os
 import re
 import html
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlparse
 from natsort import natsorted
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -132,6 +132,125 @@ def parse_torrentkitty_results(page_html, page_url):
             }
         )
     return results
+
+def parse_torrentkitty_detail(page_html, page_url):
+    html_text = page_html or ""
+
+    title = ""
+    title_match = re.search(
+        r"<h2[^>]*>\s*Details\s+for\s+torrent:\s*(.*?)\s*</h2>",
+        html_text,
+        flags=re.I | re.S,
+    )
+    if title_match:
+        title = _strip_html_tags(title_match.group(1))
+    if not title:
+        title_tag_match = re.search(
+            r"<title[^>]*>(.*?)</title>", html_text, flags=re.I | re.S
+        )
+        if title_tag_match:
+            title = _strip_html_tags(title_tag_match.group(1))
+            title = re.sub(r"\s*-\s*Torrent\s+Kitty\s*$", "", title, flags=re.I)
+
+    magnet = ""
+    magnet_match = re.search(
+        r'<textarea[^>]*class=["\'][^"\']*\bmagnet-link\b[^"\']*["\'][^>]*>(.*?)</textarea>',
+        html_text,
+        flags=re.I | re.S,
+    )
+    if magnet_match:
+        magnet = (
+            html.unescape(magnet_match.group(1))
+            .replace("\r", "")
+            .replace("\n", "")
+            .strip()
+        )
+
+    info = {
+        "title": title,
+        "torrent_hash": "",
+        "number_of_files": "",
+        "content_size": "",
+        "created_on": "",
+        "keywords": [],
+        "link": "",
+    }
+    summary_table_match = re.search(
+        r'<table[^>]*class=["\'][^"\']*\bdetailSummary\b[^"\']*["\'][^>]*>(.*?)</table>',
+        html_text,
+        flags=re.I | re.S,
+    )
+    if summary_table_match:
+        for row_html in re.findall(
+            r"<tr\b[^>]*>(.*?)</tr>", summary_table_match.group(1), flags=re.I | re.S
+        ):
+            th_match = re.search(r"<th[^>]*>(.*?)</th>", row_html, flags=re.I | re.S)
+            if not th_match:
+                continue
+
+            raw_key = _strip_html_tags(th_match.group(1))
+            normalized_key = re.sub(r"\s+", " ", raw_key).strip().rstrip(":").lower()
+            td_list = re.findall(r"<td\b[^>]*>(.*?)</td>", row_html, flags=re.I | re.S)
+            if not td_list:
+                continue
+            value_html = td_list[0]
+
+            if normalized_key == "keywords":
+                keywords = []
+                for kw_html in re.findall(
+                    r"<a\b[^>]*>(.*?)</a>", value_html, flags=re.I | re.S
+                ):
+                    kw = _strip_html_tags(kw_html)
+                    if kw:
+                        keywords.append(kw)
+                info["keywords"] = keywords
+                continue
+
+            if normalized_key == "link":
+                link_match = re.search(
+                    r"<textarea[^>]*>(.*?)</textarea>", value_html, flags=re.I | re.S
+                )
+                if link_match:
+                    info["link"] = html.unescape(link_match.group(1)).strip()
+                else:
+                    info["link"] = _strip_html_tags(value_html)
+                continue
+
+            text_value = _strip_html_tags(value_html)
+            if normalized_key == "torrent hash":
+                info["torrent_hash"] = text_value
+            elif normalized_key == "number of files":
+                info["number_of_files"] = text_value
+            elif normalized_key == "content size":
+                info["content_size"] = text_value
+            elif normalized_key == "created on":
+                info["created_on"] = text_value
+
+    files = []
+    file_table_match = re.search(
+        r'<table[^>]*id=["\']torrentDetail["\'][^>]*>(.*?)</table>',
+        html_text,
+        flags=re.I | re.S,
+    )
+    if file_table_match:
+        for row_html in re.findall(
+            r"<tr\b[^>]*>(.*?)</tr>", file_table_match.group(1), flags=re.I | re.S
+        ):
+            if re.search(r"<th\b", row_html, flags=re.I):
+                continue
+            name = _strip_html_tags(_extract_table_cell(row_html, "name"))
+            size = _strip_html_tags(_extract_table_cell(row_html, "size"))
+            if not (name or size):
+                continue
+            files.append({"name": name, "size": size})
+
+    return {
+        "title": title,
+        "detail_url": page_url,
+        "magnet": magnet,
+        "info": info,
+        "files": files,
+    }
 
 print(
     r"""
@@ -792,6 +911,35 @@ def butailing_detail():
 
 
 
+
+@app.route("/torrentkitty_detail", methods=["POST"])
+def torrentkitty_detail():
+    if not is_login():
+        return jsonify({"success": False, "message": "unauthorized"})
+
+    payload = request.get_json(silent=True) or {}
+    detail_url = str(payload.get("detail_url", "")).strip()
+    if not detail_url:
+        return jsonify(
+            {"success": False, "message": "detail_url is required", "data": {}}
+        )
+
+    parsed = urlparse(detail_url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return jsonify({"success": False, "message": "detail_url is invalid", "data": {}})
+
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
+
+    try:
+        response = requests.get(detail_url, headers=headers, timeout=20)
+        response.raise_for_status()
+        data = parse_torrentkitty_detail(response.text, detail_url)
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e), "data": {}})
+
 @app.route("/butailing_tr_detail", methods=["POST"])
 def butailing_tr_detail():
     if not is_login():
@@ -1397,6 +1545,9 @@ if __name__ == "__main__":
         host=HOST,
         port=PORT,
     )
+
+
+
 
 
 
