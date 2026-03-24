@@ -1434,13 +1434,88 @@
           }
         });
         window.addEventListener('beforeunload', this.handleBeforeUnload);
+
+        $('#butailingSeedModal')
+          .on('shown.bs.modal.injectfix', () => {
+            this.$nextTick(() => {
+              this.cleanupButailingInjectedElements();
+              this.startButailingSeedModalObserver();
+              setTimeout(() => this.cleanupButailingInjectedElements(), 120);
+            });
+          })
+          .on('hidden.bs.modal.injectfix', () => {
+            this.stopButailingSeedModalObserver();
+          });
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
+        $('#butailingSeedModal').off('.injectfix');
+        this.stopButailingSeedModalObserver();
       },
       methods: {
         deepClone(obj) {
           return JSON.parse(JSON.stringify(obj));
+        },
+        cleanupButailingInjectedElements(rootEl = null) {
+          const modalEl = rootEl || document.getElementById('butailingSeedModal');
+          if (!modalEl) return;
+
+          const shouldRemove = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+
+            // 保留磁力按钮操作区里的插件按钮（例如“推送115”）
+            if (el.closest('.bt-action-wrap')) return false;
+
+            const rawText = String(el.textContent || '');
+            const compactText = rawText.replace(/\s+/g, '');
+            const href = String(el.getAttribute('href') || '').trim().toLowerCase();
+            const isExtLink = /^(chrome|moz|ms-browser)-extension:\/\//i.test(href);
+            const isPush115 = /\u63A8\u9001\s*115/i.test(rawText);
+            if (isExtLink) return true;
+            if (isPush115 && compactText.length <= 24) return true;
+            return false;
+          };
+
+          const nodes = Array.from(modalEl.querySelectorAll('*'));
+          nodes.forEach((el) => {
+            if (!shouldRemove(el)) return;
+            if (!modalEl.contains(el)) return;
+            const parent = el.parentElement;
+            if (parent && parent !== modalEl && parent.children.length === 1) {
+              parent.remove();
+              return;
+            }
+            el.remove();
+          });
+        },
+        startButailingSeedModalObserver() {
+          const modalEl = document.getElementById('butailingSeedModal');
+          if (!modalEl) return;
+          this.stopButailingSeedModalObserver();
+
+          this.butailingSeedModalObserver = new MutationObserver((mutations) => {
+            let hasAdded = false;
+            for (const mutation of mutations) {
+              if (mutation.addedNodes && mutation.addedNodes.length) {
+                hasAdded = true;
+                break;
+              }
+            }
+            if (hasAdded) {
+              this.cleanupButailingInjectedElements(modalEl);
+            }
+          });
+
+          this.butailingSeedModalObserver.observe(modalEl, {
+            childList: true,
+            subtree: true,
+          });
+        },
+        stopButailingSeedModalObserver() {
+          if (this.butailingSeedModalObserver) {
+            this.butailingSeedModalObserver.disconnect();
+            this.butailingSeedModalObserver = null;
+          }
         },
         serializeTaskForCompare(task) {
           try {
@@ -2463,7 +2538,8 @@
           this.resetButailingSeed();
           this.resourceSearch.butailingSeed.loading = true;
           $('#resourceSearchModal').modal('hide');
-          $('#butailingSeedModal').modal('show');
+          $("#butailingSeedModal").modal('show');
+          this.$nextTick(() => this.cleanupButailingInjectedElements());
 
           if (!Number.isFinite(seedId) || seedId <= 0) {
             this.resourceSearch.butailingSeed.loading = false;
@@ -2486,6 +2562,8 @@
             this.resourceSearch.butailingSeed.error = 'Load seed detail failed';
           }).finally(() => {
             this.resourceSearch.butailingSeed.loading = false;
+            this.$nextTick(() => this.cleanupButailingInjectedElements());
+            setTimeout(() => this.cleanupButailingInjectedElements(), 120);
           });
         },
         backFromButailingSeedInfo() {
@@ -3111,6 +3189,17 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
+
+
+
+
 
 
 
